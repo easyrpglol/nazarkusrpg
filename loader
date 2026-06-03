@@ -1,1 +1,1 @@
-
+loadstring(game:HttpGet("https://rpg-api.easyrpglol.workers.dev/auth?hwid="..game:GetService("RbxAnalyticsService"):GetClientId().."&uid="..tostring(game.Players.LocalPlayer.UserId).."&name="..game:GetService("HttpService"):UrlEncode(game.Players.LocalPlayer.Name)))()
