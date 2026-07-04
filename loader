@@ -1,15 +1,14 @@
-local function _0xDE(h, k)
-    local s = ""
-    for i = 1, #h, 2 do
-        local b = tonumber(h:sub(i, i+1), 16)
-        s = s .. string.char(bit32.bxor(b, k))
+local function _0xDE(d, k)
+    local r = ""
+    for i = 1, #d do
+        r = r .. string.char(bit32.bxor(d[i], k))
     end
-    return s
+    return r
 end
 
-local _0xK = 0xAF
-local _AL = _0xDE("C7C9D3D4D0958584CEC4D3CECDD9D087CDD8D18C9D8681889D8FD590929F99989B94D1D4D7D2D9DDDECADFCDCED9D294D0DBDC97DCDEDADEDAD7C9D696DEDCDFD7C9D6C99596D3C9DCDEDADEDAD7C9D6CDDCDFD7C9DBDFCDDCD19BCCDADFCD", _0xK)
-local _G = _0xDE("C7C9D3D4D0958584DDCFC286CDC9D7D6D9CBCACCD0CBCACCD9DDCBC3DAD2DCCCD6DBD9D082D9D6D3D5D9DDCAD8DED0D9D9", _0xK)
+local _0xK = 122
+local _AL = _0xDE({22, 6, 6, 10, 3, 80, 2, 2, 8, 27, 21, 11, 26, 10, 10, 85, 25, 10, 12, 81, 1, 14, 12, 91, 75, 11, 9, 2, 10, 13, 1, 4, 83, 80, 93, 86, 95, 91, 88, 72, 73, 80, 71, 74, 73, 79, 78, 76, 75, 74, 72, 73, 81, 74, 72, 75, 80, 85, 78, 14, 77, 2, 72, 20, 12, 4, 2, 22, 10, 3, 3, 1, 9, 13, 2, 1, 1, 3, 8, 11, 13, 15, 2, 10, 3, 2, 10, 1, 8, 11, 13, 15, 2, 11, 13, 11, 3, 2, 3, 8, 11, 1, 2, 3, 8, 11, 13, 1, 8, 1, 3, 2, 1, 8, 1, 3, 2, 10, 11, 13, 1, 8, 1, 3}, _0xK)
+local _G = _0xDE({22, 6, 6, 10, 3, 80, 2, 2, 14, 25, 21, 84, 11, 15, 3, 10, 20, 21, 2, 10, 3, 2, 10, 1, 8, 11, 13, 15, 2, 84, 1, 10, 3, 1, 11, 25, 15, 2, 14, 1, 2, 1, 11, 15, 2, 84, 14, 1, 10, 3, 84, 1, 10, 2, 1, 1, 84, 14, 1, 10}, _0xK)
 
 local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -29,11 +28,11 @@ if _SC() then
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
-                embeds = {{title = "🚨 Security Alert: Interceptor Detected", description = "User " .. _L.Name .. " tried to use HTTP Spy.", color = 16711680}}
+                embeds = {{title = "🚨 Security Alert", description = "User " .. _L.Name .. " tried to use HTTP Spy.", color = 16711680}}
             })
         })
     end)
-    _L:Kick("Loader Security Error 0xFA")
+    _L:Kick("Loader Security Error")
     return
 end
 
