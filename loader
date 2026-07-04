@@ -1,27 +1,19 @@
-local function _0xDE(_d, _k)
-    local _r = ""
-    for _i = 1, #_d do
-        local _c = bit32.bxor(_d[_i], _k)
-        _r = _r .. string.char((_c - _i) % 256)
-    end
-    return _r
+local function _D(d)
+    local r = ""
+    for i = 1, #d do r = r .. string.char(d[i] - i - 42) end
+    return r
 end
 
-local _0xK = 168
-local _0xS1 = _0xDE({205, 203, 212, 201, 203, 208, 222, 210, 213, 218, 201, 211, 211, 214, 202, 202, 203, 201, 202, 206, 206}, _0xK)
-local _0xS2 = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 211, 195, 42, 146, 220, 223, 43, 208, 46, 220, 32, 47, 210, 32, 210, 47, 47, 38, 40, 34, 57, 228, 42, 39, 38, 249, 36, 48, 48, 35, 32, 51, 10, 52, 51, 59, 244, 8, 55, 63, 48, 201, 13, 49, 51, 1, 206, 8, 54, 51, 55, 7, 196, 3, 8, 1, 7, 217, 29, 28, 4}, _0xK)
-local _0xAL = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 197, 219, 214, 199, 212, 40, 219, 150, 220, 41, 40, 235, 222, 46, 40, 239, 56, 215, 213, 44, 36, 37, 34, 59, 248, 251, 240, 253, 245, 241, 242, 244, 241, 245, 200, 204, 205, 206, 200, 192, 202, 204, 194, 205, 204, 1, 192, 52, 194, 218, 212, 26, 26, 216, 44, 5, 48, 26, 21, 48, 31, 50, 223, 26, 63, 59, 27, 30, 9, 44, 28, 41, 51, 47, 34, 5, 5, 37, 47, 15, 25, 10, 0, 26, 125, 126, 106, 113, 126, 29, 30, 115, 51, 26, 53, 126, 115, 4, 4, 126, 76, 108, 74, 72, 112, 123, 8, 104, 4, 97, 109, 107, 96}, _0xK)
+local _AL = _D({147, 160, 161, 158, 162, 106, 96, 97, 151, 173, 168, 153, 166, 170, 157, 104, 158, 171, 170, 109, 160, 176, 170, 113, 186, 169, 167, 174, 182, 183, 180, 189, 122, 125, 130, 127, 136, 132, 129, 139, 140, 133, 138, 135, 140, 144, 145, 143, 148, 147, 149, 150, 142, 211, 216, 150, 198, 217, 188, 214, 172, 149, 188, 156, 190, 194, 198, 182, 188, 160, 227, 163, 192, 199, 186, 204, 237, 217, 177, 210, 228, 200, 224, 195, 222, 229, 209, 230, 213, 177, 215, 253, 248, 256, 239, 225, 220, 197, 193, 241, 215, 224, 244, 245, 229, 263, 249, 198, 201, 234, 272, 253, 241, 245, 272, 229, 214, 215, 226, 265, 260})
+local _G1 = _D({147, 160, 161, 158, 162, 106, 96, 97, 165, 149, 172, 100, 158, 161, 173, 162, 176, 158, 178, 177, 164, 178, 164, 177, 177, 184, 170, 180, 187, 118, 172, 185, 184, 123, 187, 175, 201, 177, 195, 189, 200, 199, 132, 195, 199, 199})
 
 local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 
 local function _SC()
-    local ok, info = pcall(debug.getinfo, 1)
-    local src = (ok and info and info.source) or ""
-    if not string.find(src:lower(), _0xS1:lower(), 1, true) then return "ERR_SRC" end
     if not _req then return false end
-    local ok2, inf2 = pcall(debug.getinfo, _req)
-    if ok2 and inf2 and inf2.source ~= "=[C]" then return "ERR_ENV" end
+    local ok, info = pcall(debug.getinfo, _req)
+    if ok and info and info.source ~= "=[C]" then return "ERR_ENV" end
     for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy"}) do
         if getgenv()[v] then return "ERR_DEB" end
     end
@@ -30,20 +22,18 @@ end
 
 local _err = _SC()
 if _err then
-    if _err ~= "ERR_SRC" then
-        pcall(function()
-            _req({Url = _0xAL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode({content = "Violation: ".._L.Name.." | ".._err})})
-        end)
-    end
-    _L:Kick("Security: "..tostring(_err))
+    pcall(function()
+        _req({Url = _AL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode({content = "Security Violation: ".._L.Name.." | ".._err})})
+    end)
+    _L:Kick("Loader Security: "..tostring(_err))
     return
 end
 
-getgenv()._NK_SESS = game:GetService("HttpService"):GenerateGUID(false)
-local s, c = pcall(function() return game:HttpGet(_0xS2) end)
+getgenv()._NK_AUTH_SIGNAL = "NAZARKUS_SECURE_v2_" .. math.random(1000,9999)
+local s, c = pcall(function() return game:HttpGet(_G1) end)
 if s and c then
     local f = loadstring(c)
     if f then pcall(f) end
 else
-    _L:Kick("Auth Fail")
+    _L:Kick("Loader: Connection Failed")
 end
