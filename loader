@@ -4,49 +4,80 @@ local function _D(h)
     return s
 end
 
-local _A = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
-local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
-
-local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+local _L = game:GetService("Players").LocalPlayer
 
-local function _SC()
+local function _CHECK_SPY()
     if not _req then return false end
-    local ok, info = pcall(debug.getinfo, _req)
-    if ok and info and info.source ~= "=[C]" then return true end
-    for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy", "HydroSpy", "TwiSpy"}) do if getgenv()[v] then return true end end
+    
+    -- 1. Детект хуков на функции запросов
+    local info = debug.getinfo(_req)
+    if info.source ~= "=[C]" or info.what ~= "C" then return "HOOKED_REQ" end
+    
+    local info2 = debug.getinfo(game.HttpGet)
+    if info2.source ~= "=[C]" then return "HOOKED_HTTP" end
+
+    -- 2. Поиск известных шпионов в CoreGui
+    local cg = game:GetService("CoreGui")
+    local spyNames = {"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy"}
+    for _, n in ipairs(spyNames) do
+        if cg:FindFirstChild(n) or getgenv()[n] then return "SPY_DETECTED_" .. n end
+    end
+
+    -- 3. Детект скрытых таблиц SimpleSpy
+    if getgenv()._simple_spy_setup or getfenv()._simple_spy_setup then return "SIMPLESPY_INTERNAL" end
+    
+    -- 4. Проверка метатаблицы (на попытку подмены методов)
+    local mt = getrawmetatable(game)
+    if not mt or not isreadonly(mt) then -- Если метатаблица разлочена без причины
+        -- Это может быть признаком работы шпиона
+    end
+
     return false
 end
 
-if _SC() then
+local _spy_err = _CHECK_SPY()
+
+if _spy_err then
+    -- Если шпион найден: Шлем отчет на АЛЕРТ-ВЕБХУК и кикаем
+    local _A = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
+    local tk = "N/A"
+    pcall(function() tk = readfile("nazarkus_key.json") end)
+    
     pcall(function()
         _req({
             Url = _A, Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
-                embeds = {{title = "🚨 Security Alert: Interceptor Detected", description = "User " .. _L.Name .. " used HTTP Spy.", color = 16711680}}
+                embeds = {{
+                    title = "🚨 Security Alert: Interceptor Detected",
+                    color = 16711680,
+                    description = "Detection Type: **" .. tostring(_spy_err) .. "**",
+                    fields = {
+                        {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
+                        {name = "Key", value = "```" .. tk .. "```", inline = false},
+                        {name = "Executor", value = (identifyexecutor and identifyexecutor() or "Unknown"), inline = true}
+                    }
+                }}
             })
         })
     end)
-    _L:Kick("Loader Error: 0xSECURITY")
+    _L:Kick("Security Tamper Detected. Connection terminated.")
+    while true do end
     return
 end
 
--- Создаем физический токен доступа в игроке
-local _TK = Instance.new("StringValue")
-_TK.Name = "__NK_INTERNAL_AUTH"
-_TK.Value = "V8_NAZARKUS_PRO_SECURE"
-_TK.Parent = _L
+-- Если всё чисто: Создаем скрытый объект для рукопожатия и грузим ядро
+local _VAL = Instance.new("StringValue")
+_VAL.Name = "__NK_INTERNAL_AUTH"
+_VAL.Value = "V8_NAZARKUS_SECURE_TOKEN"
+_VAL.Parent = _L
 
+local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
 local ok, res = pcall(function() return game:HttpGet(_G) end)
 if ok and res then
     local f = loadstring(res)
-    if f then 
-        task.spawn(function()
-            local success, err = pcall(f)
-            if not success then warn("Core startup error") end
-        end)
-    end
+    if f then task.spawn(f) end
 else
-    _L:Kick("Connection Fail. Try again.")
+    _L:Kick("Connection Error 0x82")
 end
