@@ -2,26 +2,27 @@ local _0x1 = bit32 or {bxor = function(a,b) return a + b end}
 local function _0xDE(_d, _k)
     local _r = ""
     for _i = 1, #_d do
-        _r = _r .. string.char(_0x1.bxor(_d[_i], _k) - _i)
+        local _v = _0x1.bxor(_d[_i], _k) - _i
+        _r = _r .. string.char(_v % 256)
     end
     return _r
 end
 
 local _0xK = 168
-local _0xS1 = _0xDE({213, 213, 213, 209, 216, 151, 141, 142, 231, 214, 218, 237, 211, 207, 207, 149, 210, 201, 202, 200, 215, 202, 202, 212, 211, 202, 203, 211, 146, 214, 210, 208, 142, 222, 210, 213, 218, 201, 211, 211, 214, 202, 202, 203, 201, 202, 206, 206, 199, 149, 201, 201, 215, 218, 208, 141, 205, 201, 212, 197, 200, 203}, _0xK)
-local _0xS2 = _0xDE({213, 213, 213, 209, 216, 151, 141, 142, 231, 214, 218, 237, 211, 207, 207, 149, 210, 201, 202, 200, 215, 202, 202, 212, 211, 202, 203, 211, 146, 206, 211, 212, 201, 203, 208, 222, 210, 213, 218, 201, 211, 211, 214, 202, 202, 203, 201, 202, 206, 206, 199, 149, 201, 201, 215, 218, 208, 141, 205, 193, 200}, _0xK)
-local _0xAL = _0xDE({213, 213, 213, 209, 216, 151, 141, 142, 217, 222, 212, 210, 210, 201, 213, 215, 141, 214, 202, 216, 142, 214, 202, 213, 210, 202, 200, 216, 212, 146, 184, 180, 184, 187, 178, 185, 181, 181, 188, 185, 181, 183, 183, 182, 182, 183, 189, 186, 184, 186, 178, 185, 179, 185, 187, 180, 141, 206, 212, 183, 211, 203, 179, 185, 182, 187, 200, 207, 201, 184, 188, 189, 209, 215, 185, 181, 188, 205, 185, 177, 210, 213, 183, 213, 184, 184, 177, 215, 215, 188, 212, 186, 212, 187, 186, 210, 183, 186, 216, 219, 185, 221, 222, 187, 180, 211, 221, 219, 225, 226, 184, 222, 219, 212, 221, 220, 224, 215, 225, 212}, _0xK)
+-- Ссылка на лоадер (для проверки ERR_SRC)
+local _S1 = _0xDE({201, 201, 201, 205, 192, 131, 137, 138, 206, 194, 218, 197, 211, 215, 218, 130, 210, 197, 214, 216, 203, 214, 202, 212, 215, 202, 215, 219, 134, 206, 214, 192, 138, 202, 214, 217, 222, 197, 215, 215, 210, 206, 214, 219, 217, 214, 210, 218, 215, 130, 213, 213, 207, 210, 216, 137, 213, 205, 196, 217, 204, 211}, _0xK)
+-- Ссылка на ядро (itseasyrpg/rpgg/main/rpg)
+local _S2 = _0xDE({201, 201, 201, 205, 192, 131, 137, 138, 206, 194, 218, 197, 211, 215, 218, 130, 210, 197, 214, 216, 203, 214, 202, 212, 215, 202, 215, 219, 134, 214, 211, 200, 217, 215, 212, 210, 198, 205, 206, 217, 207, 203, 206, 211, 219, 217, 218, 214, 206, 130, 213, 213, 207, 210, 216, 130, 213, 213, 207, 213, 197}, _0xK)
+-- Алерт вебхук
+local _AL = _0xDE({201, 201, 201, 205, 192, 131, 137, 138, 213, 194, 214, 202, 210, 211, 205, 215, 149, 214, 202, 212, 138, 210, 202, 213, 214, 218, 216, 200, 212, 134, 184, 180, 184, 187, 178, 185, 181, 181, 188, 185, 181, 183, 183, 182, 182, 183, 189, 186, 184, 186, 178, 185, 179, 185, 187, 180, 141, 206, 212, 183, 211, 203, 179, 185, 182, 187, 200, 207, 201, 184, 188, 189, 209, 215, 185, 181, 188, 205, 185, 177, 210, 213, 183, 213, 184, 184, 177, 215, 215, 188, 212, 186, 212, 187, 186, 210, 183, 186, 216, 219, 185, 221, 222, 187, 180, 211, 221, 219, 225, 226, 184, 222, 219, 212, 221, 220, 224, 215, 225, 212}, _0xK)
 
 local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 
 local function _SC()
-    local ok, info = pcall(debug.getinfo, 1)
-    local src = (ok and info and info.source) or ""
-    if not string.find(src:lower(), "easyrpglol/nazarkusrpg", 1, true) then return "ERR_SRC" end
     if not _req then return false end
-    local ok2, inf2 = pcall(debug.getinfo, _req)
-    if ok2 and inf2 and inf2.source ~= "=[C]" then return "ERR_ENV" end
+    local ok, info = pcall(debug.getinfo, _req)
+    if ok and info and info.source ~= "=[C]" then return "ERR_ENV" end
     for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy"}) do
         if getgenv()[v] then return "ERR_DEB" end
     end
@@ -30,20 +31,18 @@ end
 
 local _err = _SC()
 if _err then
-    if _err ~= "ERR_SRC" then
-        pcall(function()
-            _req({Url = _0xAL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode({embeds = {{title = "Security Violation", description = "User: ".._L.Name.."\nReason: ".._err, color = 16711680}}})})
-        end)
-    end
+    pcall(function()
+        _req({Url = _AL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode({content = "Violation: ".._L.Name.." | ".._err})})
+    end)
     _L:Kick("Security: "..tostring(_err))
     return
 end
 
-getgenv()._NK_SESS = game:GetService("HttpService"):GenerateGUID(false)
-local s, c = pcall(function() return game:HttpGet(_0xS2) end)
+shared._NK_SESS = "NAZARKUS_ULTRA_V8"
+local s, c = pcall(function() return game:HttpGet(_S2) end)
 if s and c then
     local f = loadstring(c)
     if f then pcall(f) end
 else
-    _L:Kick("Auth Fail")
+    _L:Kick("Connection Error 0x5")
 end
