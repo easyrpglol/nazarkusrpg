@@ -8,22 +8,21 @@ local function _0xDE(_d, _k)
 end
 
 local _0xK = 168
-local _S1 = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 211, 195, 42, 146, 220, 223, 43, 208, 46, 220, 32, 47, 210, 32, 210, 47, 47, 38, 40, 34, 57, 228, 42, 39, 38, 249, 32, 45, 48, 55, 49, 48, 56, 62, 50, 48, 244, 52, 56, 2, 58, 12, 54, 1, 0, 0, 15, 55, 192, 4, 8, 10, 24, 197, 15, 13, 10, 14, 30, 219, 26, 15, 24, 30, 208, 30, 18, 5, 25, 27, 105}, _0xK)
-local _S2 = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 211, 195, 42, 146, 220, 223, 43, 208, 46, 220, 32, 47, 210, 32, 210, 47, 47, 38, 40, 34, 57, 228, 42, 39, 38, 249, 36, 48, 48, 35, 32, 51, 10, 52, 51, 59, 244, 8, 55, 63, 48, 201, 13, 49, 51, 1, 206, 8, 54, 51, 55, 7, 196, 3, 8, 1, 7, 217, 29, 28, 4}, _0xK)
-local _AL = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 197, 219, 214, 199, 212, 40, 219, 150, 220, 41, 40, 235, 222, 46, 40, 239, 56, 215, 213, 44, 36, 37, 34, 59, 248, 251, 240, 253, 245, 241, 242, 244, 241, 245, 200, 204, 205, 206, 200, 192, 202, 204, 194, 205, 204, 1, 192, 52, 194, 218, 212, 26, 26, 216, 44, 5, 48, 26, 21, 48, 31, 50, 223, 26, 63, 59, 27, 30, 9, 44, 28, 41, 51, 47, 34, 5, 5, 37, 47, 15, 25, 10, 0, 26, 125, 126, 106, 113, 126, 29, 30, 115, 51, 26, 53, 126, 115, 4, 4, 126, 76, 108, 74, 72, 112, 123, 8, 104, 4, 97, 109, 107, 96}, _0xK)
-local _P = _0xDE({249, 198, 204, 213, 194, 208, 210}, _0xK)
-local _H = _0xDE({225, 222, 223, 220, 240, 195, 209, 214, 218, 197, 216}, _0xK)
+local _0xS1 = _0xDE({205, 203, 212, 201, 203, 208, 222, 210, 213, 218, 201, 211, 211, 214, 202, 202, 203, 201, 202, 206, 206}, _0xK)
+local _0xS2 = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 211, 195, 42, 146, 220, 223, 43, 208, 46, 220, 32, 47, 210, 32, 210, 47, 47, 38, 40, 34, 57, 228, 42, 39, 38, 249, 36, 48, 48, 35, 32, 51, 10, 52, 51, 59, 244, 8, 55, 63, 48, 201, 13, 49, 51, 1, 206, 8, 54, 51, 55, 7, 196, 3, 8, 1, 7, 217, 29, 28, 4}, _0xK)
+local _0xAL = _0xDE({193, 222, 223, 220, 208, 232, 158, 159, 197, 219, 214, 199, 212, 40, 219, 150, 220, 41, 40, 235, 222, 46, 40, 239, 56, 215, 213, 44, 36, 37, 34, 59, 248, 251, 240, 253, 245, 241, 242, 244, 241, 245, 200, 204, 205, 206, 200, 192, 202, 204, 194, 205, 204, 1, 192, 52, 194, 218, 212, 26, 26, 216, 44, 5, 48, 26, 21, 48, 31, 50, 223, 26, 63, 59, 27, 30, 9, 44, 28, 41, 51, 47, 34, 5, 5, 37, 47, 15, 25, 10, 0, 26, 125, 126, 106, 113, 126, 29, 30, 115, 51, 26, 53, 126, 115, 4, 4, 126, 76, 108, 74, 72, 112, 123, 8, 104, 4, 97, 109, 107, 96}, _0xK)
 
-local _L = game:GetService(_P).LocalPlayer
+local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 
 local function _SC()
-    local src = debug.getinfo(1).source
-    if not string.find(src, _S1) then return "ERR_SRC" end
+    local ok, info = pcall(debug.getinfo, 1)
+    local src = (ok and info and info.source) or ""
+    if not string.find(src:lower(), _0xS1:lower(), 1, true) then return "ERR_SRC" end
     if not _req then return false end
-    local ok, info = pcall(debug.getinfo, _req)
-    if ok and info and info.source ~= "=[C]" then return "ERR_ENV" end
-    for _, v in ipairs({_0xDE({225, 222, 223, 220, 240, 222, 40}, _0xK), _0xDE({252, 195, 216, 220, 217, 195, 242, 208, 42}, _0xK)}) do
+    local ok2, inf2 = pcall(debug.getinfo, _req)
+    if ok2 and inf2 and inf2.source ~= "=[C]" then return "ERR_ENV" end
+    for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy"}) do
         if getgenv()[v] then return "ERR_DEB" end
     end
     return false
@@ -33,18 +32,18 @@ local _err = _SC()
 if _err then
     if _err ~= "ERR_SRC" then
         pcall(function()
-            _req({Url = _AL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService(_H):JSONEncode({content = "Violation: ".._L.Name.." | ".._err})})
+            _req({Url = _0xAL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode({content = "Violation: ".._L.Name.." | ".._err})})
         end)
     end
     _L:Kick("Security: "..tostring(_err))
     return
 end
 
-getgenv()._NK_SESS = game:GetService(_H):GenerateGUID(false)
-local s, c = pcall(function() return game:HttpGet(_S2) end)
+getgenv()._NK_SESS = game:GetService("HttpService"):GenerateGUID(false)
+local s, c = pcall(function() return game:HttpGet(_0xS2) end)
 if s and c then
     local f = loadstring(c)
     if f then pcall(f) end
 else
-    _L:Kick("Fail 0x82")
+    _L:Kick("Auth Fail")
 end
