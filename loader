@@ -27,7 +27,7 @@ local function _SC()
     if debug.getinfo(game.HttpGet).source ~= "=[C]" then return "HOOKED_HTTPGET" end
     local cg = game:GetService("CoreGui")
     for _, n in ipairs({"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy"}) do
-        if cg:FindFirstChild(n) or getgenv()[n] then return "SPY_DETECTED_" .. n end
+        if cg:FindFirstChild(n) or getgenv()[n] then return n end
     end
     return false
 end
@@ -53,6 +53,7 @@ if _se then
             })
         })
     end)
+    task.wait(0.5)
     _L:Kick("Security Error: " .. tostring(_se))
     while true do end return
 end
