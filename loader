@@ -21,133 +21,104 @@ pcall(function()
     end
 end)
 
--- УСИЛЕННЫЙ ДЕТЕКТ СПАЯ
+-- ДЕТЕКТ СПАЯ (интеграция логики anti-spy скрипта)
 local function _SC()
-    -- 1. Проверка хуков через iscclosure (самый надёжный способ)
-    if iscclosure and islclosure then
-        -- game.HttpGet должна быть C-функцией
+    -- Клонируем функции хуков чтобы не попасть в их же ловушки
+    local realHookFunction = hookfunction and clonefunction and clonefunction(hookfunction)
+    local realHookMetamethod = hookmetamethod and clonefunction and clonefunction(hookmetamethod)
+    
+    if not realHookFunction or not realHookMetamethod then
+        return false -- нет нужных функций у экзекутора
+    end
+
+    -- 1. ПРОВЕРКА __namecall (главный трюк — HttpSpy хукает именно его)
+    local dummyNc = newcclosure(function(self, ...) return nil end)
+    local prevNc
+    local ok = pcall(function()
+        prevNc = realHookMetamethod(game, "__namecall", dummyNc)
+    end)
+    
+    if ok and prevNc then
+        -- Восстанавливаем то что было
+        pcall(function() realHookMetamethod(game, "__namecall", prevNc) end)
+        
+        -- Если предыдущий __namecall — Lua-замыкание, значит его хукнули
+        local isL = false
+        pcall(function() isL = islclosure(prevNc) end)
+        if isL then
+            return "SPY_NAMECALL_HOOKED"
+        end
+    end
+
+    -- 2. Проверка HttpGet через тот же приём с dummy hook
+    local function checkHooked(fn, name)
+        if not fn then return false end
+        local dummy = newcclosure(function() end)
+        local prev
+        local ok = pcall(function() prev = realHookFunction(fn, dummy) end)
+        if not ok or not prev then return false end
+        -- Восстанавливаем
+        pcall(function() realHookFunction(fn, prev) end)
+        -- Проверяем был ли он L-замыканием
+        local isL = false
+        pcall(function() isL = islclosure(prev) end)
+        return isL
+    end
+
+    if checkHooked(game.HttpGet, "HttpGet") then return "SPY_HTTPGET_HOOKED" end
+    if checkHooked(_H.RequestAsync, "RequestAsync") then return "SPY_REQUESTASYNC_HOOKED" end
+    if checkHooked(_H.GetAsync, "GetAsync") then return "SPY_GETASYNC_HOOKED" end
+    if checkHooked(_H.PostAsync, "PostAsync") then return "SPY_POSTASYNC_HOOKED" end
+    
+    if request and checkHooked(request, "request") then return "SPY_REQUEST_HOOKED" end
+    if http_request and checkHooked(http_request, "http_request") then return "SPY_HTTP_REQUEST_HOOKED" end
+    if http and http.request and checkHooked(http.request, "http.request") then return "SPY_HTTP_DOT_REQUEST_HOOKED" end
+    if syn and syn.request and checkHooked(syn.request, "syn.request") then return "SPY_SYN_REQUEST_HOOKED" end
+
+    -- 3. Прямая проверка islclosure (на случай если dummy hook не отработал)
+    if islclosure then
         local ok, isL = pcall(islclosure, game.HttpGet)
-        if ok and isL then return "HOOKED_HTTPGET_LCLOSURE" end
+        if ok and isL then return "SPY_HTTPGET_LCLOSURE" end
         
-        -- HttpService методы
         local ok2, isL2 = pcall(islclosure, _H.RequestAsync)
-        if ok2 and isL2 then return "HOOKED_REQUESTASYNC_LCLOSURE" end
-        
-        local ok3, isL3 = pcall(islclosure, _H.GetAsync)
-        if ok3 and isL3 then return "HOOKED_GETASYNC_LCLOSURE" end
-        
-        -- Глобальные функции запросов
-        if request then
-            local ok4, isL4 = pcall(islclosure, request)
-            if ok4 and isL4 then return "HOOKED_REQUEST_LCLOSURE" end
-        end
-        if http_request then
-            local ok5, isL5 = pcall(islclosure, http_request)
-            if ok5 and isL5 then return "HOOKED_HTTP_REQUEST_LCLOSURE" end
-        end
-        if http and http.request then
-            local ok6, isL6 = pcall(islclosure, http.request)
-            if ok6 and isL6 then return "HOOKED_HTTP_DOT_REQUEST_LCLOSURE" end
-        end
-        if syn and syn.request then
-            local ok7, isL7 = pcall(islclosure, syn.request)
-            if ok7 and isL7 then return "HOOKED_SYN_REQUEST_LCLOSURE" end
-        end
+        if ok2 and isL2 then return "SPY_REQUESTASYNC_LCLOSURE" end
     end
 
-    -- 2. Проверка через getoriginalfunction (если хукнута — вернёт другую функцию)
-    if getoriginalfunction then
-        local ok, orig = pcall(getoriginalfunction, game.HttpGet)
-        if ok and orig and orig ~= game.HttpGet then
-            return "HOOKED_HTTPGET_ORIGINAL"
-        end
-    end
-
-    -- 3. Проверка через debug.getinfo
-    local ok, info = pcall(debug.getinfo, game.HttpGet)
-    if ok and info and info.source and info.source ~= "=[C]" then
-        return "HOOKED_HTTPGET_SOURCE"
-    end
-
-    -- 4. Сканирование CoreGui — ищем всё что связано с HttpSpy/Spy
-    local badNames = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "VGG Spy", "TwiSpy", "Spidey", "BeboSpy", "NotDSF"}
-    for _, obj in ipairs(_CG:GetDescendants()) do
-        local ok, name = pcall(function() return obj.Name end)
-        if ok and name then
-            for _, bad in ipairs(badNames) do
-                if string.find(string.lower(name), string.lower(bad)) then
-                    return "SPY_GUI_" .. bad
+    -- 4. Скан CoreGui / PlayerGui на UI спая
+    local badNames = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "TwiSpy", "BeboSpy", "NotDSF"}
+    local function scanGui(root)
+        for _, obj in ipairs(root:GetDescendants()) do
+            local n
+            pcall(function() n = obj.Name end)
+            if n then
+                for _, bad in ipairs(badNames) do
+                    if string.find(string.lower(n), string.lower(bad)) then
+                        return "SPY_GUI_" .. bad
+                    end
                 end
             end
-        end
-        -- Проверяем текст в TextLabel/TextButton
-        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
-            local ok2, txt = pcall(function() return obj.Text end)
-            if ok2 and txt then
-                for _, bad in ipairs(badNames) do
-                    if string.find(string.lower(txt), string.lower(bad)) then
-                        return "SPY_TEXT_" .. bad
+            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                local t
+                pcall(function() t = obj.Text end)
+                if t then
+                    for _, bad in ipairs(badNames) do
+                        if string.find(string.lower(t), string.lower(bad)) then
+                            return "SPY_TEXT_" .. bad
+                        end
                     end
                 end
             end
         end
+        return nil
     end
 
-    -- 5. Проверка PlayerGui тоже
+    local found = scanGui(_CG)
+    if found then return found end
+    
     local pg = _L:FindFirstChildOfClass("PlayerGui")
     if pg then
-        for _, obj in ipairs(pg:GetDescendants()) do
-            local ok, name = pcall(function() return obj.Name end)
-            if ok and name then
-                for _, bad in ipairs(badNames) do
-                    if string.find(string.lower(name), string.lower(bad)) then
-                        return "SPY_PGUI_" .. bad
-                    end
-                end
-            end
-        end
-    end
-
-    -- 6. Проверка глобальной среды на подозрительные ключи
-    if getgenv then
-        local env = getgenv()
-        local badGlobals = {"HttpSpy", "SimpleSpy", "SpyLogs", "SpyLoaded", "__SPY__", "SPY_ACTIVE"}
-        for _, key in ipairs(badGlobals) do
-            if env[key] ~= nil then return "SPY_GLOBAL_" .. key end
-        end
-    end
-
-    -- 7. Проверка через getgc — ищем скрипты с характерными строками спая
-    if getgc then
-        local ok = pcall(function()
-            for _, v in pairs(getgc(true)) do
-                if type(v) == "table" then
-                    local hasUrl, hasBody, hasMethod = false, false, false
-                    pcall(function()
-                        for k, _ in pairs(v) do
-                            if type(k) == "string" then
-                                local lk = string.lower(k)
-                                if lk == "requestlist" or lk == "requestlog" or lk == "logrequest" then
-                                    error("SPY_TABLE_" .. k)
-                                end
-                            end
-                        end
-                    end)
-                end
-            end
-        end)
-    end
-
-    -- 8. Проверка хуков через checkcaller/hookfunction идентичность
-    if hookfunction and clonefunction then
-        local ok, clone = pcall(clonefunction, game.HttpGet)
-        if ok and clone then
-            local ok2, isC = pcall(iscclosure, clone)
-            local ok3, isCorig = pcall(iscclosure, game.HttpGet)
-            if ok2 and ok3 and isC ~= isCorig then
-                return "HOOKED_HTTPGET_MISMATCH"
-            end
-        end
+        found = scanGui(pg)
+        if found then return found end
     end
 
     return false
