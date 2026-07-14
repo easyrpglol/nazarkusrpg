@@ -16,75 +16,102 @@ local _H = game:GetService("HttpService")
 local _CG = game:GetService("CoreGui")
 local _RAS = game:GetService("RbxAnalyticsService")
 
--- НАДЁЖНЫЙ ДЕТЕКТ (только проверенные методы, без false positives)
-local function _detectOnce()
-    local realHookFunction = hookfunction and clonefunction and clonefunction(hookfunction)
-    local realHookMetamethod = hookmetamethod and clonefunction and clonefunction(hookmetamethod)
+-- Клонируем ОДИН РАЗ (не в каждом вызове детекта)
+local _realHookFunction = hookfunction and clonefunction and clonefunction(hookfunction)
+local _realHookMetamethod = hookmetamethod and clonefunction and clonefunction(hookmetamethod)
+local _isLC = islclosure
 
-    -- 1. __namecall: проверяем только через islclosure (надёжно)
-    if realHookMetamethod then
-        local dummyNc = newcclosure(function(self, ...) return nil end)
-        local prevNc
-        local ok = pcall(function() prevNc = realHookMetamethod(game, "__namecall", dummyNc) end)
-        if prevNc then pcall(function() realHookMetamethod(game, "__namecall", prevNc) end) end
-        if ok and prevNc then
-            local isL = false
-            pcall(function() isL = islclosure(prevNc) end)
-            if isL then return "SPY_NAMECALL_LCLOSURE" end
+-- Кэшируем ссылки на функции
+local _fns = {
+    {game.HttpGet, "HTTPGET"},
+    {game.HttpGetAsync, "HTTPGETASYNC"},
+    {game.HttpPost, "HTTPPOST"},
+    {game.HttpPostAsync, "HTTPPOSTASYNC"},
+    {_H.RequestAsync, "REQUESTASYNC"},
+    {_H.GetAsync, "GETASYNC"},
+    {_H.PostAsync, "POSTASYNC"},
+}
+
+-- === БЫСТРАЯ ПРОВЕРКА (только хуки, ~1-2мс) ===
+local function _detectFast()
+    if not _realHookFunction or not _realHookMetamethod or not _isLC then return false end
+    
+    -- 1. __namecall
+    local dummyNc = newcclosure(function(self, ...) return nil end)
+    local prevNc
+    local ok = pcall(_realHookMetamethod, game, "__namecall", dummyNc)
+    if ok then
+        pcall(function() prevNc = _realHookMetamethod(game, "__namecall", dummyNc) end)
+    end
+    -- Восстанавливаем
+    if prevNc then pcall(_realHookMetamethod, game, "__namecall", prevNc) end
+    if prevNc then
+        local isL = false
+        pcall(function() isL = _isLC(prevNc) end)
+        if isL then return "SPY_NAMECALL_LCLOSURE" end
+    end
+
+    -- 2. Проверка HTTP-функций
+    local dummy = newcclosure(function() end)
+    for i = 1, #_fns do
+        local fn = _fns[i][1]
+        if fn then
+            local prev
+            pcall(function() prev = _realHookFunction(fn, dummy) end)
+            if prev then
+                pcall(function() _realHookFunction(fn, prev) end)
+                local isL = false
+                pcall(function() isL = _isLC(prev) end)
+                if isL then return "SPY_" .. _fns[i][2] .. "_LCLOSURE" end
+            end
         end
     end
+    
+    return false
+end
 
-    -- 2. Проверка HTTP-функций: только islclosure
-    local function checkHooked(fn)
-        if not fn or not realHookFunction then return false end
-        local dummy = newcclosure(function() end)
-        local prev
-        local ok = pcall(function() prev = realHookFunction(fn, dummy) end)
-        if prev then pcall(function() realHookFunction(fn, prev) end) end
-        if not ok or not prev then return false end
-        local isL = false
-        pcall(function() isL = islclosure(prev) end)
-        return isL
-    end
-
-    if checkHooked(game.HttpGet) then return "SPY_HTTPGET_LCLOSURE" end
-    if checkHooked(game.HttpGetAsync) then return "SPY_HTTPGETASYNC_LCLOSURE" end
-    if checkHooked(game.HttpPost) then return "SPY_HTTPPOST_LCLOSURE" end
-    if checkHooked(game.HttpPostAsync) then return "SPY_HTTPPOSTASYNC_LCLOSURE" end
-    if checkHooked(_H.RequestAsync) then return "SPY_REQUESTASYNC_LCLOSURE" end
-    if checkHooked(_H.GetAsync) then return "SPY_GETASYNC_LCLOSURE" end
-    if checkHooked(_H.PostAsync) then return "SPY_POSTASYNC_LCLOSURE" end
-
-    -- 3. GC-скан на СПЕЦИФИЧНЫЕ структуры спаев (высокая точность)
+-- === МЕДЛЕННАЯ ПРОВЕРКА (GC + GUI, разбита на chunks с yield) ===
+local function _detectSlow()
+    -- GC-скан таблиц с yield каждые 500 итераций
     if getgc then
         local found
-        pcall(function()
-            for _, v in pairs(getgc(true)) do
+        local ok = pcall(function()
+            local gc = getgc(true)
+            local counter = 0
+            for i = 1, #gc do
+                local v = gc[i]
+                counter = counter + 1
+                if counter >= 500 then
+                    counter = 0
+                    task.wait() -- yield чтобы не фризить
+                end
                 if type(v) == "table" then
-                    pcall(function()
-                        -- HttpSpy koboldpaws _cfg
-                        if rawget(v, "blockWebhooks") ~= nil 
-                        and rawget(v, "blockAll") ~= nil 
-                        and rawget(v, "paused") ~= nil then
+                    -- Быстрая проверка через rawget с short-circuit
+                    local ok2 = pcall(function()
+                        local bw = rawget(v, "blockWebhooks")
+                        if bw ~= nil and rawget(v, "blockAll") ~= nil and rawget(v, "paused") ~= nil then
                             found = "GC_HTTPSPY_CONFIG"
-                        -- HttpSpy _methodColors
-                        elseif rawget(v, "GET") and rawget(v, "POST") 
-                        and rawget(v, "PATCH") and rawget(v, "DELETE") 
-                        and rawget(v, "HEAD") then
+                            return
+                        end
+                        local get = rawget(v, "GET")
+                        if get and rawget(v, "POST") and rawget(v, "DELETE") and rawget(v, "HEAD") then
                             found = "GC_METHOD_COLORS"
-                        -- HttpSpy _ansi
-                        elseif rawget(v, "lblue") and rawget(v, "lgreen") 
-                        and rawget(v, "orange") and rawget(v, "magenta")
-                        and rawget(v, "reset") then
+                            return
+                        end
+                        local lb = rawget(v, "lblue")
+                        if lb and rawget(v, "lgreen") and rawget(v, "orange") and rawget(v, "reset") then
                             found = "GC_ANSI_COLORS"
-                        -- HttpSpy главный объект
-                        elseif rawget(v, "_con") and rawget(v, "_hooks") 
-                        and rawget(v, "_cfg") and rawget(v, "_status") then
+                            return
+                        end
+                        local con = rawget(v, "_con")
+                        if con and rawget(v, "_hooks") and rawget(v, "_cfg") then
                             found = "GC_HTTPSPY_CLASS"
-                        -- Console class
-                        elseif rawget(v, "_ansi") and rawget(v, "_methodColors") 
-                        and rawget(v, "_p") then
+                            return
+                        end
+                        local ansi = rawget(v, "_ansi")
+                        if ansi and rawget(v, "_methodColors") and rawget(v, "_p") then
                             found = "GC_CONSOLE_CLASS"
+                            return
                         end
                     end)
                     if found then return end
@@ -94,19 +121,30 @@ local function _detectOnce()
         if found then return found end
     end
 
-    -- 4. GC-скан строк — характерные подписи спаев
+    -- GC-скан строк с yield
     if getgc then
         local found
         pcall(function()
-            for _, v in pairs(getgc(false)) do
-                if type(v) == "string" and #v > 5 and #v < 200 then
-                    local lv = string.lower(v)
-                    if string.find(lv, "koboldpaws", 1, true)
-                    or string.find(lv, "http spy by", 1, true)
-                    or string.find(lv, "bebomods", 1, true)
-                    or string.find(lv, "notdsf", 1, true) then
-                        found = "GC_STRING_SPY"
-                        return
+            local gc = getgc(false)
+            local counter = 0
+            for i = 1, #gc do
+                local v = gc[i]
+                counter = counter + 1
+                if counter >= 1000 then
+                    counter = 0
+                    task.wait()
+                end
+                if type(v) == "string" then
+                    local len = #v
+                    if len > 5 and len < 200 then
+                        -- Не делаем lower если строка явно не подходит (оптимизация)
+                        if string.find(v, "koboldpaws", 1, true)
+                        or string.find(v, "http spy by", 1, true)
+                        or string.find(v, "BeboMods", 1, true)
+                        or string.find(v, "NotDSF", 1, true) then
+                            found = "GC_STRING_SPY"
+                            return
+                        end
                     end
                 end
             end
@@ -114,14 +152,23 @@ local function _detectOnce()
         if found then return found end
     end
 
-    -- 5. GUI-скан (только по конкретным именам, не по частичным)
+    -- GUI-скан (обычно небольшой, не тяжёлый)
     local badExact = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "TwiSpy", "BeboSpy"}
     local function scanGui(root)
-        for _, obj in ipairs(root:GetDescendants()) do
+        local descendants = root:GetDescendants()
+        local counter = 0
+        for i = 1, #descendants do
+            local obj = descendants[i]
+            counter = counter + 1
+            if counter >= 100 then
+                counter = 0
+                task.wait()
+            end
             local n
             pcall(function() n = obj.Name end)
             if n then
-                for _, bad in ipairs(badExact) do
+                for j = 1, #badExact do
+                    local bad = badExact[j]
                     if n == bad or string.find(n, bad, 1, true) then
                         return "SPY_GUI_" .. bad
                     end
@@ -130,10 +177,9 @@ local function _detectOnce()
             if obj:IsA("TextLabel") or obj:IsA("TextButton") then
                 local t
                 pcall(function() t = obj.Text end)
-                if t then
-                    local lt = string.lower(t)
-                    if string.find(lt, "http spy", 1, true) 
-                    or string.find(lt, "koboldpaws", 1, true) then
+                if t and #t < 500 then
+                    if string.find(t, "http spy", 1, true) 
+                    or string.find(t, "koboldpaws", 1, true) then
                         return "SPY_TEXT_DETECTED"
                     end
                 end
@@ -149,7 +195,14 @@ local function _detectOnce()
     return false
 end
 
--- Отправка алерта о детекте
+-- Полная проверка (для внешних вызовов из rpg.lua) — быстрая + медленная
+local function _detectOnce()
+    local f = _detectFast()
+    if f then return f end
+    return _detectSlow()
+end
+
+-- Алерт
 local function _sendDetectionAlert(reason)
     task.spawn(function()
         pcall(function()
@@ -185,7 +238,6 @@ local function _sendDetectionAlert(reason)
     end)
 end
 
--- Функция кика с алертом
 local function _KICK(reason)
     _sendDetectionAlert(reason)
     task.wait(0.3)
@@ -196,20 +248,29 @@ local function _KICK(reason)
     end
 end
 
--- === ПЕРВАЯ ПРОВЕРКА ===
+-- === СТАРТОВЫЕ ПРОВЕРКИ ===
 local _se = _detectOnce()
 if _se then _KICK(_se) end
 
--- ВТОРАЯ ПРОВЕРКА через 0.3с
 task.wait(0.3)
 local _se2 = _detectOnce()
 if _se2 then _KICK(_se2) end
 
--- ПОСТОЯННАЯ ФОНОВАЯ ПРОВЕРКА (каждую секунду, всегда)
+-- === ФОНОВЫЕ ПРОВЕРКИ ===
+-- Быстрая проверка (только хуки) каждые 2 секунды — почти без нагрузки
 task.spawn(function()
     while true do
-        task.wait(1)
-        local se = _detectOnce()
+        task.wait(2)
+        local se = _detectFast()
+        if se then _KICK(se) end
+    end
+end)
+
+-- Медленная проверка (GC+GUI) раз в 8 секунд — с yield'ами внутри
+task.spawn(function()
+    while true do
+        task.wait(8)
+        local se = _detectSlow()
         if se then _KICK(se) end
     end
 end)
@@ -228,8 +289,8 @@ _AU.Value = "V8_SECURE_AUTH"
 _AU.Parent = _ST
 shared._NK_AUTH = "V8_SECURE_AUTH"
 
--- Экспорт для rpg.lua
 getgenv().__NK_detectSpy = _detectOnce
+getgenv().__NK_detectFast = _detectFast
 getgenv().__NK_sendAlert = _sendDetectionAlert
 getgenv().__NK_KICK = _KICK
 
