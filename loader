@@ -29,58 +29,7 @@ local _fns = {
     {_H.PostAsync, "POSTASYNC"},
 }
 
--- === СОЗДАЁМ ЗАГРУЗОЧНЫЙ ОВЕРЛЕЙ ===
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "NK_LoadingOverlay"
-screenGui.IgnoreGuiInset = true
-screenGui.ResetOnSpawn = false
-screenGui.DisplayOrder = 999999999
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-pcall(function() screenGui.Parent = _CG end)
-if not screenGui.Parent then
-    pcall(function() screenGui.Parent = _L:WaitForChild("PlayerGui") end)
-end
-
-local bg = Instance.new("Frame")
-bg.Size = UDim2.new(1, 0, 1, 0)
-bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-bg.BackgroundTransparency = 0.4
-bg.BorderSizePixel = 0
-bg.Parent = screenGui
-
-local mainLabel = Instance.new("TextLabel")
-mainLabel.Size = UDim2.new(0, 400, 0, 80)
-mainLabel.Position = UDim2.new(0.5, -200, 0.5, -60)
-mainLabel.BackgroundTransparency = 1
-mainLabel.Text = "WAIT..."
-mainLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-mainLabel.Font = Enum.Font.GothamBold
-mainLabel.TextSize = 48
-mainLabel.TextStrokeTransparency = 0.5
-mainLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-mainLabel.Parent = screenGui
-
-local countLabel = Instance.new("TextLabel")
-countLabel.Size = UDim2.new(0, 400, 0, 50)
-countLabel.Position = UDim2.new(0.5, -200, 0.5, 20)
-countLabel.BackgroundTransparency = 1
-countLabel.Text = ""
-countLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-countLabel.Font = Enum.Font.Gotham
-countLabel.TextSize = 28
-countLabel.TextStrokeTransparency = 0.5
-countLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-countLabel.Parent = screenGui
-
-local function setCounter(sec)
-    pcall(function() countLabel.Text = tostring(sec) end)
-end
-
-local function destroyOverlay()
-    pcall(function() screenGui:Destroy() end)
-end
-
--- === БЫСТРАЯ ПРОВЕРКА ===
+-- === БЫСТРАЯ ПРОВЕРКА (~0мс) ===
 local function _detectFast()
     if not _isLC then return false end
     if _getRawMt then
@@ -127,21 +76,28 @@ local function _detectFast()
     return false
 end
 
--- === МЕДЛЕННАЯ ПРОВЕРКА ===
+-- === МЕДЛЕННАЯ ПРОВЕРКА (сильно оптимизирована) ===
 local function _detectSlow()
     if not getgc then return false end
+    
+    -- Захватываем gc один раз
     local gc
     local okgc = pcall(function() gc = getgc(true) end)
     if not okgc or not gc then return false end
+    
     local total = #gc
     local found = nil
-    local CHUNK = 200
+    local CHUNK = 200 -- yield каждые 200 итераций
+    
+    -- Скан таблиц (БЕЗ pcall внутри цикла)
     local i = 1
     while i <= total and not found do
         local endI = math.min(i + CHUNK - 1, total)
+        -- Внутренний быстрый chunk без pcall
         for j = i, endI do
             local v = gc[j]
             if type(v) == "table" then
+                -- Читаем только первое поле — если не подходит, скипаем
                 local bw = rawget(v, "blockWebhooks")
                 if bw ~= nil then
                     if rawget(v, "blockAll") ~= nil and rawget(v, "paused") ~= nil then
@@ -178,8 +134,10 @@ local function _detectSlow()
         i = endI + 1
         if not found then task.wait() end
     end
+    
     if found then return found end
-
+    
+    -- Скан строк
     local gcs
     local okgcs = pcall(function() gcs = getgc(false) end)
     if okgcs and gcs then
@@ -205,13 +163,16 @@ local function _detectSlow()
             if not found then task.wait() end
         end
     end
+    
     if found then return found end
-
+    
+    -- Быстрый GUI-скан (только по имени, только TextLabel/TextButton)
     local badExact = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "TwiSpy", "BeboSpy"}
     local function scanGui(root)
         local descendants
         local ok = pcall(function() descendants = root:GetDescendants() end)
         if not ok or not descendants then return nil end
+        
         local n = #descendants
         i = 1
         while i <= n do
@@ -234,13 +195,16 @@ local function _detectSlow()
         end
         return nil
     end
+    
     local guiFound = scanGui(_CG)
     if guiFound then return guiFound end
+    
     local pg = _L:FindFirstChildOfClass("PlayerGui")
     if pg then
         guiFound = scanGui(pg)
         if guiFound then return guiFound end
     end
+    
     return false
 end
 
@@ -286,7 +250,6 @@ local function _sendDetectionAlert(reason)
 end
 
 local function _KICK(reason)
-    destroyOverlay()
     _sendDetectionAlert(reason)
     task.wait(0.3)
     pcall(function() _L:Kick("Security Error: [" .. tostring(reason) .. "]") end)
@@ -296,39 +259,14 @@ local function _KICK(reason)
     end
 end
 
--- === ЗАПУСК ПРОВЕРОК С ОТСЧЁТОМ ===
--- Общий отсчёт (сколько секунд ждать пока идут проверки)
-local TOTAL_SECONDS = 5
-
--- Запускаем визуальный отсчёт в отдельном потоке
-task.spawn(function()
-    for i = TOTAL_SECONDS, 1, -1 do
-        setCounter(i)
-        task.wait(1)
-    end
-    setCounter(0)
-end)
-
--- Первая быстрая проверка сразу
 local _se = _detectOnce()
 if _se then _KICK(_se) end
 
--- Ждём часть времени, потом ещё раз
-task.wait(0.5)
+task.wait(0.3)
 local _se2 = _detectOnce()
 if _se2 then _KICK(_se2) end
 
--- Ждём до конца отсчёта
-task.wait(TOTAL_SECONDS - 0.5)
-
--- Финальная проверка перед снятием оверлея
-local _se3 = _detectOnce()
-if _se3 then _KICK(_se3) end
-
--- Снимаем оверлей
-destroyOverlay()
-
--- === ФОНОВЫЕ ПРОВЕРКИ ===
+-- Fast каждые 3 сек (мгновенно, без нагрузки)
 task.spawn(function()
     while true do
         task.wait(3)
@@ -337,6 +275,7 @@ task.spawn(function()
     end
 end)
 
+-- Slow каждые 15 сек (yield каждые 200 итераций внутри)
 task.spawn(function()
     while true do
         task.wait(15)
@@ -345,7 +284,6 @@ task.spawn(function()
     end
 end)
 
--- === АВТОРИЗАЦИЯ ===
 local _TS = game:GetService("TestService")
 local _ST = _TS:FindFirstChild("__NK_RUNTIME")
 if not _ST then
